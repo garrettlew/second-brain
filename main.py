@@ -9,26 +9,26 @@ def main():
     agent = Agent(model_client)
 
     test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
-    test_tags_list = ['heritage-railway', 'preservation', 'steam-locomotive']
+    # test_tags_list = ['heritage-railway', 'preservation', 'steam-locomotive']
 
-    # response = agent.tagger_agent(test_note_text)
-    # response = agent.model_chat([
-    #             {
-    #                 "role": "user",
-    #                 "content": "Hello world!"
-    #             }
-    #         ])
+    # 1. Generate tags
+    tags = agent.tagger_agent(test_note_text)
+    print(tags)
+    # response = agent.model_chat([{"role": "user","content": "Hello world!"}])
 
+    # 2. Use note + tags to generate summary
+    summary = agent.summarizer_agent(test_note_text, tags)
+    print(summary)
+    # test_summary = "This note details the history of the Talyllyn Railway, the first in the world to be preserved and operated by volunteers as a heritage railway. It highlights the line's transition into a tourist attraction through significant engineering efforts and the acquisition of new steam locomotives. Additionally, the text notes the railway's cultural impact, serving as the real-life model for the fictional Skarloey Railway and inspiring the film The Titfield Thunderbolt."
 
-
-    # summary = agent.summarizer_agent(test_note_text, test_tags_list)
-    # print(summary)
-    test_summary = "This note details the history of the Talyllyn Railway, the first in the world to be preserved and operated by volunteers as a heritage railway. It highlights the line's transition into a tourist attraction through significant engineering efforts and the acquisition of new steam locomotives. Additionally, the text notes the railway's cultural impact, serving as the real-life model for the fictional Skarloey Railway and inspiring the film The Titfield Thunderbolt."
+    # 3. Use summary to create embedding to store in vector database
     embedding_response = model_client.embeddings(
-        prompt=test_summary,
+        prompt=summary,
         model="mxbai-embed-large"
     )
     print(embedding_response)
+
+    # 4. Store note embedding into vector database
     # vault = Vault("/Users/garrettlew/vault")
 
 
@@ -81,7 +81,6 @@ class Agent:
         - Write at most 2-3 sentences
         - Focus on the core idea or insight of the note, not peripheral details
         - Use the provided tags as a guide for what the note is primarily about
-        - Write in third person (e.g. "This note covers...", "The note explores...")
         - Do not include opinions or evaluation of the content
         - Return ONLY the summary text, nothing else — no preamble, no labels
 
@@ -119,31 +118,31 @@ class Vault:
         self.index_vault()
 
 
-def index_vault(self):
-    existing_ids = set(self.collection.get()["ids"])  # what's already indexed
-    
-    for filepath in pathlib.Path(self.vault_path).rglob("*.md"):
-        filename = str(filepath)
-        
-        if filename not in existing_ids:         
-            text = filepath.read_text()
-            index_note(filename, text)
-            print(f"Indexed: {filename}")
+    def index_vault(self):
+        existing_ids = set(self.collection.get()["ids"])  # what's already indexed
+
+        for filepath in pathlib.Path(self.vault_path).rglob("*.md"):
+            filename = str(filepath)
+
+            if filename not in existing_ids:
+                text = filepath.read_text()
+                self.index_note(filename, text)
+                print(f"Indexed: {filename}")
 
 
-def index_note(self, filename, text):
-    existing_ids = set(self.collection.get()["ids"])  # what's already indexed
-    if filename not in existing_ids:
-        response = self.model_client.embeddings(
-            prompt=text,
-            model=self.model_type
-        )
-        vector = response['embedding']
-        self.collection.add(
-            ids=[filename],
-            embeddings=[vector],
-            documents=[text]
-        )
+    def index_note(self, filename, text):
+        existing_ids = set(self.collection.get()["ids"])  # what's already indexed
+        if filename not in existing_ids:
+            response = self.model_client.embeddings(
+                prompt=text,
+                model=self.model_type
+            )
+            vector = response['embedding']
+            self.collection.add(
+                ids=[filename],
+                embeddings=[vector],
+                documents=[text]
+            )
 
 
 if __name__ == "__main__":

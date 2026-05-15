@@ -1,29 +1,69 @@
 
-Requirements
+# Second Brain
+
+## Requirements
 
 - ollama
 - chromadb
 
 
-Local LLM setup (Mac M1)
+## Local LLM setup 
+(This was done on an M1 Mac)
 
-install ollama. Download the ollama application (.dmg installer not the .sh script)
+1. Install ollama. Download the ollama application (.dmg installer not the .sh script).
 
-Set these variables before starting OLLAMA
-
+2. (Optional for optimization) Set these variables before starting OLLAMA:
+```shell
 launchctl setenv OLLAMA_FLASH_ATTENTION 1
 launchctl setenv OLLAMA_KV_CACHE_TYPE q8_0
 launchctl setenv OLLAMA_NUM_PARALLEL 1
+```
 
-If you have another machine (Mac M1) to run inference:
+3. If you have another machine (Mac M1) to run inference:
 - On the inference machine, General > Sharing > Turn Remote login. Click the i icon and add the user to the Allow access for.
-- On machine running script: ssh -N -L 11434:localhost:11434 <user>@<local_ip>
-- ssh -N -L 11434:localhost:11434 garrett@192.168.1.1
 
-Models:
+On machine running script: 
+```shell
+ssh -N -L 11434:localhost:11434 <user>@<local_ip>
+EX: ssh -N -L 11434:localhost:11434 garrett@192.168.1.1
+```
+
+To get local IP address of machine:
+```shell
+ipconfig getifaddr en0
+```
+
+To get user:
+```shell
+whoami
+```
+
+To check if Ollama is running:
+```shell
+curl http://localhost:11434 
+```
+
+**Models**:
 
 - 'qwen3.5:9b' for the agents
 - 'mxbai-embed-large' for embeddings
 
+To download the model without running it:
+```shell
+ollama pull <MODEL_NAME>
+```
 
-tail -f ~/.ollama/logs/server.log to see logs
+To show which models ollama has downloaded:
+```shell
+ollama list
+```
+
+To show which models ollama is running:
+```shell
+ollama ps
+```
+
+To see ollama logs:
+```shell
+tail -f ~/.ollama/logs/server.log
+```
