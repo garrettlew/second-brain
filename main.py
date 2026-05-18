@@ -1,13 +1,16 @@
 import chromadb
 import json
 import ollama
-import pathlib
+from pathlib import Path
 
 
 def main():
     model_client = ollama.Client(host="http://localhost:11434")
     agent = Agent(model_client)
 
+    vault_filepath = "/Users/garrettlew/vault"
+    # test_filepath = Path('/Users/garrettlew/vault/example.md')
+    # test_note_text = test_filepath.read_text()
     test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
 
     # 1. Generate tags
@@ -27,7 +30,7 @@ def main():
     print(embedding_response)
 
     # 4. Store note embedding into vector database
-    # vault = Vault("/Users/garrettlew/vault")
+    vault = Vault(vault_filepath, model_client, agent)
 
 
 class Agent:
@@ -103,10 +106,10 @@ class Agent:
 
 
 class Vault:
-    def __init__(self, vault_path, model_client, model_type="mxbai-embed-large"):
+    def __init__(self, vault_path, model_client, agent, model_type="mxbai-embed-large"):
         self.vault_path = vault_path
         self.model_client = model_client
-        self.vector_db = chromadb.PersistentClient(path=vault_path)
+        self.vector_db = chromadb.PersistentClient()
         self.model_type = "mxbai-embed-large"
         # try:
         #     self.vector_db.delete_collection(name="second-brain")
@@ -114,22 +117,29 @@ class Vault:
         # except ValueError:
         #     print("Collection did not exist. Creating a fresh one.")
         self.collection = self.vector_db.get_or_create_collection("second-brain")
+        self.agent = agent
         self.index_vault()
 
 
     def index_vault(self):
         existing_ids = set(self.collection.get()["ids"])  # what's already indexed
 
-        for filepath in pathlib.Path(self.vault_path).rglob("*.md"):
-            filename = str(filepath)
+        for filepath in Path(self.vault_path).rglob("*.md"):
+            filename = str(filepath.relative_to(self.vault_path))    # will need to reconstruct full path to find file
 
             if filename not in existing_ids:
                 text = filepath.read_text()
-                self.index_note(filename, text)
+                tags = self.agent.tagger_agent(text)
+                summary = self.agent.summarizer_agent(text, tags)
+                metadata_list = [{
+                    "tags": ', '.join(tags),
+                    "last_modified": filepath.stat().st_mtime     # last modified time of the file
+                }]
+                self.index_note(filename, summary, metadata_list)
                 print(f"Indexed: {filename}")
 
 
-    def index_note(self, filename, text):
+    def index_note(self, filename, text, metadata_list=None):
         existing_ids = set(self.collection.get()["ids"])  # what's already indexed
         if filename not in existing_ids:
             response = self.model_client.embeddings(
@@ -140,7 +150,8 @@ class Vault:
             self.collection.add(
                 ids=[filename],
                 embeddings=[vector],
-                documents=[text]
+                documents=[text],
+                metadatas=metadata_list
             )
 
 
