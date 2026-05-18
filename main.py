@@ -1,14 +1,18 @@
+import argparse
 import chromadb
 import json
 import ollama
 from pathlib import Path
 
 
-def main():
+def main(vault_path: str, inputfile: str):
+    print("Vault Path: {}".format(vault_path))
+    if inputfile:
+        print("Input File: {}".format(inputfile))
+
     model_client = ollama.Client(host="http://localhost:11434")
     agent = Agent(model_client)
 
-    vault_filepath = "/Users/garrettlew/vault"
     # test_filepath = Path('/Users/garrettlew/vault/example.md')
     # test_note_text = test_filepath.read_text()
     test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
@@ -30,7 +34,7 @@ def main():
     print(embedding_response)
 
     # 4. Store note embedding into vector database
-    vault = Vault(vault_filepath, model_client, agent)
+    vault = Vault(vault_path, model_client, agent)
 
 
 class Agent:
@@ -123,6 +127,7 @@ class Vault:
 
     def index_vault(self):
         existing_ids = set(self.collection.get()["ids"])  # what's already indexed
+        index_metrics = {"indexed": 0, "skipped": 0}
 
         for filepath in Path(self.vault_path).rglob("*.md"):
             filename = str(filepath.relative_to(self.vault_path))    # will need to reconstruct full path to find file
@@ -136,7 +141,11 @@ class Vault:
                     "last_modified": filepath.stat().st_mtime     # last modified time of the file
                 }]
                 self.index_note(filename, summary, metadata_list)
+                index_metrics["indexed"] += 1
                 print(f"Indexed: {filename}")
+            else:
+                index_metrics["skipped"] += 1
+        print(index_metrics)
 
 
     def index_note(self, filename, text, metadata_list=None):
@@ -156,4 +165,8 @@ class Vault:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="A script that greets you.")
+    parser.add_argument("--vaultpath", type=str, help="Absolute path to your vault.", required=True)
+    parser.add_argument("--inputfile", type=str, help="The note to tag, summarize, and link related notes to.")
+    args = parser.parse_args()
+    main(args.vaultpath, args.inputfile)
