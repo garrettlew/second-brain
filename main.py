@@ -28,7 +28,8 @@ def main(vault_path: str, inputfile: str):
         vec = embedding_response["embedding"]
         print(f"Embedding: dim={len(vec)}, first 5={vec[:5]}\n")
 
-    vault = Vault(vault_path, model_client, agent)
+    else:
+        vault = Vault(vault_path, model_client, agent)
 
 
 class Agent:
