@@ -13,27 +13,21 @@ def main(vault_path: str, inputfile: str):
     model_client = ollama.Client(host="http://localhost:11434")
     agent = Agent(model_client)
 
-    # test_filepath = Path('/Users/garrettlew/vault/example.md')
-    # test_note_text = test_filepath.read_text()
-    test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
+    if inputfile:
+        note_path = Path(vault_path) / inputfile
+        test_note_text = note_path.read_text()
+        print(f"\n=== Single-note test: {note_path} ===\n")
 
-    # 1. Generate tags
-    tags = agent.tagger_agent(test_note_text)
-    print(tags)
-    # response = agent.model_chat([{"role": "user","content": "Hello world!"}])
+        tags = agent.tagger_agent(test_note_text)
+        print(f"Tags: {tags}\n")
 
-    # 2. Use note + tags to generate summary
-    summary = agent.summarizer_agent(test_note_text, tags)
-    print(summary)
+        summary = agent.summarizer_agent(test_note_text, tags)
+        print(f"Summary: {summary}\n")
 
-    # 3. Use summary to create embedding to store in vector database
-    embedding_response = model_client.embeddings(
-        prompt=summary,
-        model="mxbai-embed-large"
-    )
-    print(embedding_response)
+        embedding_response = model_client.embeddings(prompt=summary, model="mxbai-embed-large")
+        vec = embedding_response["embedding"]
+        print(f"Embedding: dim={len(vec)}, first 5={vec[:5]}\n")
 
-    # 4. Store note embedding into vector database
     vault = Vault(vault_path, model_client, agent)
 
 
@@ -74,7 +68,6 @@ class Agent:
             ],
             output_format='json'
         )
-        print(response)
         raw = response["message"]["content"]
         tags = json.loads(raw)
         return tags
