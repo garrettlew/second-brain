@@ -1,0 +1,34 @@
+{
+  "vault_path": "/Users/michellesheu/Documents/Obsidian Vault/notion/UCSC",
+  "notes": [
+    {"id": "UCSC.md",                          "word_count": 29,   "difficulty": "short",  "topic": "ucsc-overview"},
+    {"id": "CSE 13S Section.md",               "word_count": 40,   "difficulty": "short",  "topic": "cs-programming"},
+    {"id": "CSE30/10-29.md",                   "word_count": 47,   "difficulty": "short",  "topic": "cs-programming"},
+    {"id": "CSE30/10-27.md",                   "word_count": 50,   "difficulty": "short",  "topic": "cs-programming"},
+    {"id": "WRIT2.md",                         "word_count": 61,   "difficulty": "short",  "topic": "writing"},
+    {"id": "CSE30/11-12.md",                   "word_count": 111,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "CSE30/10-22.md",                   "word_count": 147,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "CSE30/CSE30.md",                   "word_count": 170,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "CSE30/11-03.md",                   "word_count": 177,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "CSE30/11-05.md",                   "word_count": 192,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "IDK C.md",                         "word_count": 197,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "Graphs.md",                        "word_count": 202,  "difficulty": "medium", "topic": "math-cs"},
+    {"id": "MATH19B/Midterm Review.md",        "word_count": 252,  "difficulty": "medium", "topic": "math"},
+    {"id": "AM10.md",                          "word_count": 264,  "difficulty": "medium", "topic": "math"},
+    {"id": "CSE30/10-01.md",                   "word_count": 292,  "difficulty": "medium", "topic": "cs-programming"},
+    {"id": "Graph Theory.md",                  "word_count": 319,  "difficulty": "medium", "topic": "math-cs"},
+    {"id": "MUSC 13/MUSC 13 Lecture 1.md",    "word_count": 395,  "difficulty": "long",   "topic": "music"},
+    {"id": "MATH23A Midterm.md",               "word_count": 434,  "difficulty": "long",   "topic": "math"},
+    {"id": "MATH19B/MATH19B.md",              "word_count": 565,  "difficulty": "long",   "topic": "math"},
+    {"id": "MATH23A Final.md",                 "word_count": 777,  "difficulty": "long",   "topic": "math"},
+    {"id": "Faculty Research Colloquim.md",    "word_count": 1784, "difficulty": "long",   "topic": "research"}
+  ],
+  "notes_per_category": {
+    "short (<100 words)": 5,
+    "medium (100-500 words)": 11,
+    "long (500+ words)": 5
+  },
+  "topic_variety": ["cs-programming", "math", "math-cs", "music", "writing", "research"],
+  "overlapping_topics": ["cs-programming notes share data structures and Python content", "math notes overlap in linear algebra"],
+  "negative_cases": ["MUSC 13/MUSC 13 Lecture 1.md and WRIT2.md are unrelated to CS/math"]
+}
