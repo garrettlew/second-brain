@@ -10,10 +10,26 @@ Second Brain is a local AI-powered note indexing tool for Obsidian-style Markdow
 
 ```shell
 source .venv/bin/activate
-python3 main.py --vaultpath <PATH_TO_VAULT_FOLDER> --inputfile <FILE_TO_GET_LINKS_FOR>
+
+# Single-note test (inspect tags/summary/embedding, logs to experiments/<category>.jsonl)
+python3 main.py --vaultpath <PATH> --inputfile <RELATIVE_NOTE_PATH> [--label "description"]
+
+# Full vault index
+python3 main.py --vaultpath <PATH>
 ```
 
-`--inputfile` is optional. `--vaultpath` must be an absolute path to a folder of `.md` files.
+`--inputfile` is relative to `--vaultpath`. Omit it to bulk-index the vault.
+
+Experiment flags (single-note mode only):
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--tagger-prompt` | `v1` | Prompt version from `prompts/tagger/` |
+| `--summarizer-prompt` | `v1` | Prompt version from `prompts/summarizer/` |
+| `--agent-model` | `qwen3.5:9b` | Ollama model for tag/summary |
+| `--embed-model` | `mxbai-embed-large` | Ollama model for embeddings |
+| `--experiment` | `baseline` | JSONL log category (`experiments/<name>.jsonl`) |
+| `--label` | `""` | Free-form run note |
 
 ## Dependencies
 
@@ -28,6 +44,7 @@ Everything lives in `main.py`. Three components:
 **`Agent`** — wraps the Ollama chat API and provides two specialized agents:
 - `tagger_agent(note_text)` → `list[str]`: calls the LLM with a structured prompt to return exactly 3 JSON tags
 - `summarizer_agent(note_text, tags)` → `str`: uses the tags as context to generate a 2–3 sentence summary
+- Prompts are loaded at construction time from `prompts/tagger/<version>.txt` and `prompts/summarizer/<version>.txt`
 
 **`Vault`** — manages the ChromaDB collection (`"second-brain"`) and vault indexing:
 - On init, calls `index_vault()` which walks all `.md` files under `vault_path`, skipping files already present in the collection (by filename as ID)
@@ -58,9 +75,19 @@ launchctl setenv OLLAMA_KV_CACHE_TYPE q8_0
 launchctl setenv OLLAMA_NUM_PARALLEL 1
 ```
 
+## Experimenting
+
+Prompts live in `prompts/tagger/` and `prompts/summarizer/` as versioned `.txt` files (e.g. `v1.txt`, `v2.txt`). To try a new prompt:
+
+1. Copy `prompts/tagger/v1.txt` → `prompts/tagger/v2.txt` and edit it
+2. Run with `--tagger-prompt v2 --experiment prompts --label "describe your change"`
+3. Compare runs: `jq -c '{label, tagger_prompt, tags}' experiments/prompts.jsonl`
+
+`experiments/` is git-ignored. `prompts/` is checked in — use git history to track prompt evolution.
+
 ## Known Limitations / Active TODOs
 
-- `main()` uses hardcoded test text instead of reading `--inputfile`
 - `index_vault()` only skips re-indexing by filename — it doesn't detect modified files (compare against `last_modified` metadata to implement incremental updates)
 - The `Vault` constructor has commented-out code to drop and recreate the collection; uncomment to do a full reindex
+- Switching `--embed-model` for full vault indexing will error if the new model has a different vector dimension than what's already in ChromaDB — use a separate collection per model in that case
 - No link suggestion logic is implemented yet (the `--inputfile` argument exists for this future feature)
