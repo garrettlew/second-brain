@@ -68,6 +68,9 @@ To see ollama logs:
 tail -f ~/.ollama/logs/server.log
 ```
 
+## Configurations
+
+- cosine similarity is the recommended distance formula for mxbai-embed-large to use in chromaDB
 
 ## Running
 
