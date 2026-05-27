@@ -2,6 +2,7 @@ import argparse
 import chromadb
 import json
 import ollama
+import re
 import resource
 import sys
 import time
@@ -12,6 +13,11 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
+
+def _strip_wikilinks(text: str) -> str:
+    """Remove Obsidian [[wikilinks]] so they don't leak ground-truth links into agent input."""
+    return re.sub(r'\[\[[^\]]+\]\]', '', text)
+
 
 def load_prompt(category: str, name: str) -> str:
     return (Path(__file__).parent / "prompts" / category / f"{name}.txt").read_text()
@@ -65,6 +71,7 @@ def get_vault_candidates(collection, embed_fn, query_text: str,
 
 def run_single_agent(agent, note_text: str, collection, embed_fn, note_id: str) -> dict:
     """Condition A: one LLM call produces tags + summary + links."""
+    note_text = _strip_wikilinks(note_text)
     t0 = time.perf_counter()
     candidates = get_vault_candidates(collection, embed_fn, note_text,
                                       top_k=5, exclude_id=note_id)
@@ -85,6 +92,7 @@ def run_single_agent(agent, note_text: str, collection, embed_fn, note_id: str) 
 
 def run_multi_agent(agent, note_text: str, collection, embed_fn, note_id: str) -> dict:
     """Condition B: Tagger → Summarizer → Linker pipeline."""
+    note_text = _strip_wikilinks(note_text)
     stages = []
     total_start = time.perf_counter()
 
@@ -133,6 +141,7 @@ def run_multi_agent(agent, note_text: str, collection, embed_fn, note_id: str) -
 def run_multi_agent_overseer(agent, note_text: str, collection, embed_fn,
                               note_id: str, max_retries: int = 1) -> dict:
     """Condition C: multi-agent pipeline + Overseer quality control."""
+    note_text = _strip_wikilinks(note_text)
     # Task routing: skip summarizer for very short notes (scheduling decision)
     note_word_count = len(note_text.split())
     skipped_summary = note_word_count < 50
@@ -451,7 +460,7 @@ class Vault:
         for filepath in Path(self.vault_path).rglob("*.md"):
             filename = str(filepath.relative_to(self.vault_path))
             if filename not in existing_ids:
-                text = filepath.read_text()
+                text = _strip_wikilinks(filepath.read_text())
                 tags = self.agent.tagger_agent(text)
                 summary = self.agent.summarizer_agent(text, tags)
                 self.index_note(filename, summary, [{

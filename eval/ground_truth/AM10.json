@@ -1,0 +1,9 @@
+{
+  "note_id": "AM10.md",
+  "expected_tags": ["linear-algebra", "matrices", "eigenvalues", "math"],
+  "expected_links": [
+    "MATH23A Midterm.md",
+    "MATH19B/MATH19B.md"
+  ],
+  "notes": "Linear algebra course overview: RREF, eigenvalues, quizzes. MATH23A Midterm is the closest math link (vectors/linear maps). MATH19B/MATH19B.md is another math overview. No CS link expected."
+}

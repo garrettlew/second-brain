@@ -1,0 +1,9 @@
+{
+  "note_id": "IDK C.md",
+  "expected_tags": ["c-programming", "memory-management", "linked-lists", "pointers"],
+  "expected_links": [
+    "CSE 13S Section.md",
+    "CSE30/10-01.md"
+  ],
+  "notes": "C strings, calloc/malloc, linked lists. CSE 13S Section.md also covers C (srandom, make, scan-build). CSE30/10-01.md is Python but same programming course cluster."
+}

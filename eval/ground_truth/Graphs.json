@@ -1,0 +1,9 @@
+{
+  "note_id": "Graphs.md",
+  "expected_tags": ["graph-algorithms", "greedy-method", "spanning-tree", "shortest-path"],
+  "expected_links": [
+    "Graph Theory.md",
+    "CSE30/10-29.md"
+  ],
+  "notes": "Covers Prim's, Kruskal's, Dijkstra. Graph Theory.md is the strongest expected link (both cover graph traversal); CSE30/10-29.md covers parse trees which are also tree structures."
+}
