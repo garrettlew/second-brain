@@ -4,20 +4,13 @@ import json
 import time
 from pathlib import Path
 
-import chromadb
 import ollama
+
+from main import Agent
+from Vault import Vault
 
 
 AGENT_MODEL = "qwen3.5:9b"
-EMBED_MODEL = "mxbai-embed-large"
-
-
-def get_embedding(model_client, text):
-    response = model_client.embeddings(
-        prompt=text,
-        model=EMBED_MODEL
-    )
-    return response["embedding"]
 
 
 def safe_json_loads(raw_output):
@@ -49,100 +42,18 @@ def call_json_agent(model_client, system_prompt, user_prompt):
     return safe_json_loads(raw_output)
 
 
-def generate_note_setup(model_client, note_text):
+def parse_tags(metadata):
+    tags_string = metadata.get("tags", "")
+    return [tag.strip() for tag in tags_string.split(",") if tag.strip()]
+
+
+def get_note_setup_from_vault(vault, note_id):
     """
-    Generate setup metadata for each note:
-    tags + summary.
-
-    These are stored in ChromaDB so candidate notes can be represented
-    by summaries/tags instead of truncated raw note previews.
-    """
-
-    system_prompt = """
-You are a note metadata generator.
-
-Given a Markdown note, generate:
-1. exactly 3 relevant tags
-2. a faithful 2-3 sentence summary
-
-Rules:
-- Tags must be lowercase and hyphenated.
-- The summary must only use information from the note.
-- Return ONLY valid JSON.
-
-JSON format:
-{
-  "tags": ["tag1", "tag2", "tag3"],
-  "summary": "2-3 sentence summary."
-}
-"""
-
-    user_prompt = f"""
-Markdown note:
-{note_text}
-"""
-
-    return call_json_agent(model_client, system_prompt, user_prompt)
-
-
-def index_vault_with_summary_embeddings(vault_path, model_client, collection):
-    """
-    Index each Markdown note using the note summary embedding.
-
-    ChromaDB document = note summary
-    ChromaDB metadata = filename, tags, word_count, character_count
-
-    This follows the current experiment design:
-    summary embeddings are used for retrieval, while the agent still
-    receives richer context during reranking/linking.
+    Get the stored summary and tags for the input note from the shared Vault collection.
+    In Vault.py, the ChromaDB document is the generated summary, and tags are stored in metadata.
     """
 
-    existing_ids = set(collection.get()["ids"])
-    indexed = 0
-    skipped = 0
-
-    for filepath in Path(vault_path).rglob("*.md"):
-        note_id = str(filepath.relative_to(vault_path))
-
-        if note_id in existing_ids:
-            skipped += 1
-            continue
-
-        note_text = filepath.read_text(errors="ignore")
-        setup = generate_note_setup(model_client, note_text)
-
-        tags = setup.get("tags", [])
-        summary = setup.get("summary", "")
-
-        if not summary:
-            summary = note_text[:1000]
-
-        embedding = get_embedding(model_client, summary)
-
-        collection.add(
-            ids=[note_id],
-            embeddings=[embedding],
-            documents=[summary],
-            metadatas=[{
-                "filename": note_id,
-                "tags": ", ".join(tags),
-                "word_count": len(note_text.split()),
-                "character_count": len(note_text)
-            }]
-        )
-
-        indexed += 1
-        print(f"Indexed: {note_id}")
-
-    print(f"Indexing complete. Indexed: {indexed}, skipped: {skipped}")
-
-
-def get_note_setup_from_chromadb(collection, note_id):
-    """
-    Get the stored summary and tags for an input note from ChromaDB.
-    """
-
-    result = collection.get(
+    result = vault.collection.get(
         ids=[note_id],
         include=["documents", "metadatas"]
     )
@@ -156,35 +67,46 @@ def get_note_setup_from_chromadb(collection, note_id):
     summary = result["documents"][0]
     metadata = result["metadatas"][0]
 
-    tags_string = metadata.get("tags", "")
-    tags = [tag.strip() for tag in tags_string.split(",") if tag.strip()]
-
     return {
         "summary": summary,
-        "tags": tags
+        "tags": parse_tags(metadata)
     }
 
 
-def query_related_notes(note_id, input_summary, model_client, collection, final_k=3):
+def get_embedding_from_vault(vault, text):
     """
-    Retrieve top 4 candidates using the input note summary embedding,
-    exclude the input note itself, then keep top 3.
-
-    This avoids returning the note as its own related note.
+    Use the same embedding model/client from Vault.py.
     """
 
-    total_notes = collection.count()
+    response = vault.model_client.embeddings(
+        prompt=text,
+        model=vault.model_type
+    )
+
+    return response["embedding"]
+
+
+def query_related_notes_from_vault(vault, note_id, input_summary, final_k=3):
+    """
+    Query the shared Vault ChromaDB collection.
+
+    We retrieve top 4 candidates, remove the input note itself if it appears,
+    and keep the top 3 real candidate notes.
+    """
+
+    total_notes = vault.collection.count()
 
     if total_notes <= 1:
         return []
 
-    query_embedding = get_embedding(model_client, input_summary)
+    query_embedding = get_embedding_from_vault(vault, input_summary)
 
     raw_k = min(final_k + 1, total_notes)
 
-    results = collection.query(
+    results = vault.collection.query(
         query_embeddings=[query_embedding],
-        n_results=raw_k
+        n_results=raw_k,
+        include=["documents", "metadatas", "distances"]
     )
 
     related_notes = []
@@ -196,13 +118,10 @@ def query_related_notes(note_id, input_summary, model_client, collection, final_
         candidate_summary = results["documents"][0][i]
         candidate_metadata = results["metadatas"][0][i]
 
-        tags_string = candidate_metadata.get("tags", "")
-        candidate_tags = [tag.strip() for tag in tags_string.split(",") if tag.strip()]
-
         related_notes.append({
             "note_title": candidate_id,
             "summary": candidate_summary,
-            "tags": candidate_tags,
+            "tags": parse_tags(candidate_metadata),
             "distance": results["distances"][0][i]
         })
 
@@ -239,7 +158,7 @@ Context design:
 - You will receive the raw input note.
 - You will also receive the input note's setup summary and setup tags.
 - You will receive candidate note summaries and candidate note tags.
-- Candidate notes were retrieved using summary embeddings.
+- Candidate notes were retrieved using the shared Vault.py ChromaDB setup.
 - You must only choose links from the candidate notes.
 
 Rules:
@@ -292,11 +211,11 @@ Candidate related notes:
 def run_evaluation(vault_path, output_csv):
     model_client = ollama.Client(host="http://localhost:11434")
 
-    chroma_client = chromadb.PersistentClient(path="./chroma_single_agent_eval")
-    collection = chroma_client.get_or_create_collection("single-agent-baseline")
-
-    print("Indexing vault using summary embeddings...")
-    index_vault_with_summary_embeddings(vault_path, model_client, collection)
+    # Shared setup:
+    # Agent is used by Vault.py to generate tags and summaries during indexing.
+    # Vault.py owns the ChromaDB collection and embedding/indexing setup.
+    agent = Agent(model_client)
+    vault = Vault(vault_path, model_client, agent)
 
     rows = []
 
@@ -309,15 +228,14 @@ def run_evaluation(vault_path, output_csv):
         start_total = time.time()
 
         try:
-            input_setup = get_note_setup_from_chromadb(collection, note_id)
+            input_setup = get_note_setup_from_vault(vault, note_id)
             input_summary = input_setup.get("summary", "")
             input_tags = input_setup.get("tags", [])
 
-            candidate_notes = query_related_notes(
+            candidate_notes = query_related_notes_from_vault(
+                vault=vault,
                 note_id=note_id,
                 input_summary=input_summary,
-                model_client=model_client,
-                collection=collection,
                 final_k=3
             )
 
@@ -335,7 +253,6 @@ def run_evaluation(vault_path, output_csv):
             error = ""
 
         except Exception as e:
-            input_setup = {"summary": "", "tags": []}
             input_summary = ""
             input_tags = []
             candidate_notes = []
