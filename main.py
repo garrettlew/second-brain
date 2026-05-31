@@ -1,7 +1,9 @@
 import argparse
+import concurrent.futures
 import json
 import ollama
 
+from pathlib import Path
 from pydantic import BaseModel
 from Vault import Vault
 
@@ -13,6 +15,8 @@ def main(vault_path: str, inputfile: str):
     vault = Vault(vault_path, model_client, agent)
     if inputfile:
         print("Input File: {}".format(inputfile))
+        current_note_filepath = Path(vault.vault_path) / inputfile
+        current_note_content = current_note_filepath.read_text()
 
         current_note_results = vault.collection.get(
             ids=[inputfile],
@@ -28,25 +32,12 @@ def main(vault_path: str, inputfile: str):
             n_results=4  # ask for 4, discard the first (self)
         )
 
-        # skip index 0 — that's the note itself
-        # related = results["ids"][0][1:]
-        print("IDs: {}".format(candidate_note_results['ids'][0]))
-        print("Distances: {}".format(candidate_note_results['distances'][0]))
-        candidate_note_id = candidate_note_results['ids'][0][3]
-        candidate_note_summary = candidate_note_results['documents'][0][3]
-        candidate_note_metadata = candidate_note_results['metadatas'][0][3]
-        candidate_note_tags = candidate_note_metadata.get('tags')
+        links = run_linker_agents(agent, current_note_tags, current_note_summary, current_note_content, candidate_note_results)
+        print(links)
 
-        judgement = agent.linker_agent(current_note_tags, current_note_summary, candidate_note_tags,
-                                       candidate_note_summary)
+        # if links:
+        #     vault.append_links_to_note(inputfile, links)
 
-        print(judgement.relevant)
-        print(judgement.reason)
-        links = []
-        if judgement.relevant:
-            link = {"id": candidate_note_id, "reason": judgement.reason}
-            links.append(link)
-            vault.append_links_to_note(inputfile, links)
     else:
         # test_filepath = Path('/Users/garrettlew/vault/example.md')
         # test_note_text = test_filepath.read_text()
@@ -68,6 +59,48 @@ def main(vault_path: str, inputfile: str):
         )
         print(embedding_response)
 
+
+def run_linker_agents(agent, current_note_tags, current_note_summary, current_note_content, candidate_note_results):
+    """
+    Runs linker agent calls in parallel for each candidate note and returns relevant links.
+
+    Skips the first candidate result (index 0) as it is the input note itself.
+
+    Args:
+        agent: The Agent instance used to call linker_agent.
+        current_note_tags (list[str]): Tags for the current note.
+        current_note_summary (str): Summary of the current note.
+        current_note_content (str): Raw text content of the current note.
+        candidate_note_results (dict): Query results from the vector DB containing
+            ids, documents, and metadatas for candidate notes.
+
+    Returns:
+        list[dict]: A list of relevant links, each with keys:
+            - "id": the candidate note's ID
+            - "reason": one sentence explaining the connection
+    """
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(
+                agent.linker_agent,
+                current_note_tags,
+                current_note_summary,
+                current_note_content,
+                candidate_note_results['metadatas'][0][i].get('tags'),
+                candidate_note_results['documents'][0][i]
+            ): candidate_note_results['ids'][0][i]
+            for i in range(1, len(candidate_note_results['ids'][0]))
+        }
+
+    links = []
+    for future in concurrent.futures.as_completed(futures):
+        candidate_id = futures[future]
+        judgement = future.result()
+        print(f"Future {candidate_id} returned. Judgement: {judgement}.")
+        if judgement.relevant:
+            links.append({"id": candidate_id, "reason": judgement.reason})
+
+    return links
 
 class Judgement(BaseModel):
     relevant: bool
@@ -145,7 +178,7 @@ class Agent:
         )
         return response["message"]["content"]
 
-    def linker_agent(self, current_note_tags: list[str], current_note_summary: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
+    def linker_agent(self, current_note_tags: list[str], current_note_summary: str, current_note_content: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
         LINKER_SYSTEM_PROMPT = """
         You are a note linking agent. Your job is to decide if the provided candidate note is 
         genuinely relevant to link to the current note.
@@ -167,9 +200,10 @@ class Agent:
             {"relevant": false, "reason": "Not related as the candidate note is about fence post embeddings while the current note is about the embeddings output of transformer encoders"}
         """
 
-        user_message = f"""Current note summary:
+        user_message = f"""Current note:
             Tags: {current_note_tags}
             Summary: {current_note_summary}
+            Full text: {current_note_content}
             
             Candidate:
             Tags: {candidate_note_tags}
