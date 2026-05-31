@@ -161,7 +161,7 @@ class Agent:
 
         user_message = f"""Note:
         {note_text}
-    
+
         Tags identified for this note: {', '.join(tags)}
         """
 
@@ -175,7 +175,7 @@ class Agent:
 
     def linker_agent(self, current_note_tags: list[str], current_note_summary: str, current_note_content: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
         LINKER_SYSTEM_PROMPT = """
-        You are a note linking agent. Your job is to decide if the provided candidate note is 
+        You are a note linking agent. Your job is to decide if the provided candidate note is
         genuinely relevant to link to the current note.
 
         Rules:
@@ -190,7 +190,7 @@ class Agent:
 
         Relevant example output:
             {"relevant": true, "reason": "Both notes discuss attention mechanisms in neural networks"}
-        
+
         Irrelevant example output:
             {"relevant": false, "reason": "Not related as the candidate note is about fence post embeddings while the current note is about the embeddings output of transformer encoders"}
         """
@@ -199,11 +199,11 @@ class Agent:
             Tags: {current_note_tags}
             Summary: {current_note_summary}
             Full text: {current_note_content}
-            
+
             Candidate:
             Tags: {candidate_note_tags}
             Summary: {candidate_note_summary}
-        
+
             Decide if the candidate is genuinely worth linking to the current note ("relevant": True) and give a reason why."""
 
         response = self.model_chat(

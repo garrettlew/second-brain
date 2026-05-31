@@ -1,0 +1,10 @@
+{
+  "note_id": "CSE30/10-01.md",
+  "expected_tags": ["python", "data-structures", "object-oriented-programming", "course-logistics"],
+  "expected_links": [
+    "CSE30/10-22.md",
+    "CSE30/11-05.md",
+    "IDK C.md"
+  ],
+  "notes": "Mix of Python OOP/sets/dicts with TA introductions. A good tagger should separate the CS concepts from the logistics; expect architectures to vary here."
+}

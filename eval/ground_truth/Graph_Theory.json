@@ -1,0 +1,9 @@
+{
+  "note_id": "Graph Theory.md",
+  "expected_tags": ["graph-theory", "bfs", "shortest-path", "adjacency-list"],
+  "expected_links": [
+    "Graphs.md",
+    "CSE30/10-29.md"
+  ],
+  "notes": "BFS, adjacency lists, vertex coloring. Graphs.md is the primary expected link. CSE30/10-29.md covers parse trees (tree structure overlap)."
+}

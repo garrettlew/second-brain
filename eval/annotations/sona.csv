@@ -1,0 +1,11 @@
+note_id,tag_relevance_score,summary_faithfulness_score,link_quality_score,comments
+chromadb-vector-search.md,0,1,1,"Run failed with JSON parsing error, so tags/summary/links were not produced. Rerun after improving JSON handling."
+multi-agent-systems.md,2,3,3,Strong tags and faithful summary; links to LLM basics and RAG are meaningful.
+unrelated-hiking-note.md,2,3,1,"Tags and summary are good, but the Obsidian link is not meaningfully related to hiking."
+obsidian-note-linking.md,2,3,3,"Strong tags, faithful summary, and links to RAG, ChromaDB, and multi-agent systems are useful."
+example.md,2,3,3,Strong output; links to transformer attention and LLM basics are relevant.
+transformer-attention.md,2,3,3,Strong tags and summary; links to example and LLM basics are relevant.
+unrelated-cooking-note.md,2,3,3,Good tags and summary; correctly returned no unrelated links.
+unrelated-finance-note.md,2,3,1,"Tags and summary are good, but the Obsidian link is too generic and not meaningfully related to budgeting."
+llm-basics.md,2,3,3,Strong tags and summary; attention-related links are useful.
+rag-systems.md,2,3,3,"Strong output; links to LLM basics, ChromaDB, and Obsidian note linking are meaningful."

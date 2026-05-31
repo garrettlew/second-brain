@@ -1,0 +1,61 @@
+{
+  "vault_path": "/Users/michellesheu/Documents/Obsidian Vault/notion/UCSC",
+  "notes": [
+    {"id": "CSE 13S Section.md",               "word_count": 40,   "difficulty": "short",  "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "CSE30/10-29.md",                   "word_count": 47,   "difficulty": "short",  "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "CSE30/10-27.md",                   "word_count": 50,   "difficulty": "short",  "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "WRIT2.md",                         "word_count": 61,   "difficulty": "short",  "topic": "writing",          "note_type": "lecture"},
+    {"id": "Cloud Computing/Week 2.md",        "word_count": 39,   "difficulty": "short",  "topic": "cloud-computing",  "note_type": "lecture"},
+    {"id": "CSE30/11-12.md",                   "word_count": 111,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "CSE30/10-22.md",                   "word_count": 147,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "CSE30/11-03.md",                   "word_count": 177,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "CSE30/11-05.md",                   "word_count": 192,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "Cloud Computing/Week 1.md",        "word_count": 189,  "difficulty": "medium", "topic": "cloud-computing",  "note_type": "lecture"},
+    {"id": "IDK C.md",                         "word_count": 197,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "atomic"},
+    {"id": "Graphs.md",                        "word_count": 202,  "difficulty": "medium", "topic": "math-cs",          "note_type": "atomic"},
+    {"id": "MATH19B/Midterm Review.md",        "word_count": 252,  "difficulty": "medium", "topic": "math",             "note_type": "reference"},
+    {"id": "AM10.md",                          "word_count": 264,  "difficulty": "medium", "topic": "math",             "note_type": "atomic"},
+    {"id": "CSE30/10-01.md",                   "word_count": 292,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "lecture"},
+    {"id": "Graph Theory.md",                  "word_count": 319,  "difficulty": "medium", "topic": "math-cs",          "note_type": "atomic"},
+    {"id": "Cloud Computing/Week 3.md",        "word_count": 93,   "difficulty": "short",  "topic": "cloud-computing",  "note_type": "lecture"},
+    {"id": "MUSC 13/MUSC 13 Lecture 1.md",    "word_count": 395,  "difficulty": "long",   "topic": "music",            "note_type": "lecture"},
+    {"id": "MATH23A Midterm.md",               "word_count": 434,  "difficulty": "long",   "topic": "math",             "note_type": "reference"},
+    {"id": "MATH19B/MATH19B.md",               "word_count": 565,  "difficulty": "long",   "topic": "math",             "note_type": "reference"},
+    {"id": "MATH23A Final.md",                 "word_count": 777,  "difficulty": "long",   "topic": "math",             "note_type": "reference"},
+    {"id": "Faculty Research Colloquim.md",    "word_count": 1784, "difficulty": "long",   "topic": "research",         "note_type": "literature"},
+    {"id": "MATH19B/Stuff I Should Know.md",   "word_count": 244,  "difficulty": "medium", "topic": "math",             "note_type": "reference"},
+    {"id": "MATH19B/Final.md",                 "word_count": 107,  "difficulty": "medium", "topic": "math",             "note_type": "reference"},
+    {"id": "MUSC 13/MUSC 13 Lecture 2.md",    "word_count": 154,  "difficulty": "medium", "topic": "music",            "note_type": "lecture"},
+    {"id": "MUSC 13/MUSC 13 Lecture 3.md",    "word_count": 146,  "difficulty": "medium", "topic": "music",            "note_type": "lecture"},
+    {"id": "CSE30/CSE30.md",                   "word_count": 170,  "difficulty": "medium", "topic": "cs-programming",  "note_type": "moc"}
+  ],
+  "notes_per_category": {
+    "short (<100 words)": 6,
+    "medium (100-500 words)": 16,
+    "long (500+ words)": 5
+  },
+  "notes_per_type": {
+    "lecture": 15,
+    "reference": 6,
+    "atomic": 4,
+    "literature": 1,
+    "moc": 1
+  },
+  "topic_variety": ["cs-programming", "math", "math-cs", "music", "writing", "research", "cloud-computing"],
+  "overlapping_topics": [
+    "cs-programming notes share data structures and Python/C content",
+    "math notes overlap in linear algebra and calculus",
+    "Graph Theory.md and Graphs.md both cover graph algorithms"
+  ],
+  "negative_cases": [
+    "MUSC 13/MUSC 13 Lecture 1.md and WRIT2.md are unrelated to CS/math",
+    "Faculty Research Colloquim.md spans three unrelated talks — functions as long-context stress test",
+    "CSE30/CSE30.md is a hub/MOC note — tests whether the linker treats index notes differently from knowledge notes"
+  ],
+  "excluded_from_corpus": [
+    "UCSC.md — index/hub note, 29 words, all wikilinks (empty after stripping)",
+    "MUSC 13/MUSC 13.md — stub, 14 words, all wikilinks (empty after stripping)",
+    "Cloud Computing/Cloud Computing.md — stub, 8 words, all wikilinks (empty after stripping)",
+    "Neurohackator.md — informal project/chat note, single example of type, not representative"
+  ]
+}

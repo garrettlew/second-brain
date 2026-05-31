@@ -1,2 +1,10 @@
 .idea
 .venv
+chroma/
+experiments/
+corpus_preparation_summary.md
+CHANGES_2026-05-31.md
+CLAUDE.md
+enhanced_proposal.md
+CSE 232B Project Proposal.md
+Demo.pdf

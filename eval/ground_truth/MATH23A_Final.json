@@ -1,0 +1,9 @@
+{
+  "note_id": "MATH23A Final.md",
+  "expected_tags": ["multivariable-calculus", "gradient", "vector-fields", "optimization"],
+  "expected_links": [
+    "MATH23A Midterm.md",
+    "MATH19B/MATH19B.md"
+  ],
+  "notes": "Exam guide covering gradient, Lagrange multipliers, curl/divergence. MATH23A Midterm.md is the same course. MATH19B/MATH19B.md is the other calc course. Faculty Research Colloquim.md is a deliberate non-link."
+}
