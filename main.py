@@ -15,23 +15,9 @@ def main(vault_path: str, inputfile: str):
     agent = Agent(model_client)
     vault = Vault(vault_path, model_client, agent)
     if inputfile:
-<<<<<<< HEAD
-        print(f"Input File: {inputfile}")
-    print(f"Architecture: {architecture} | Model: {agent_model} | Temp: {temperature}\n")
-
-    # Load all prompts upfront
-    prompts = {
-        "tagger":       load_prompt("tagger", tagger_prompt),
-        "summarizer":   load_prompt("summarizer", summarizer_prompt),
-        "linker":       load_prompt("linker", "v1"),
-        "single_agent": load_prompt("single_agent", "v1"),
-        "overseer":     load_prompt("overseer", "v1"),
-    }
-=======
         print("Input File: {}".format(inputfile))
         current_note_filepath = Path(vault.vault_path) / inputfile
         current_note_content = current_note_filepath.read_text()
->>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
 
         current_note_results = vault.collection.get(
             ids=[inputfile],
@@ -116,13 +102,8 @@ class Judgement(BaseModel):
     reason: str
 
 
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
-
 class Agent:
-    def __init__(self, model_client, prompts: dict, model_type: str = "qwen3.5:9b",
-                 temperature: float = 0.3):
+    def __init__(self, model_client, model_type='qwen3.5:9b'):
         self.model_client = model_client
         self.model_type = model_type
 
@@ -138,24 +119,56 @@ class Agent:
 
 
     def tagger_agent(self, note_text: str) -> list[str]:
+        TAGGER_SYSTEM_PROMPT = """
+        You are a note tagging agent. Your only job is to read a note and return relevant tags.
+
+        Rules:
+        - Return 3 tags
+        - Tags should be lowercase, hyphenated (e.g. machine-learning, not Machine Learning)
+        - Be specific but not overly narrow
+        - Return ONLY a JSON list of strings [str, str, str], nothing else
+
+        Example output:
+        ["machine-learning", "meeting", "attention-mechanism"]
+        """
+
         response = self.model_chat(
             messages=[
-                {"role": "system", "content": self.tagger_prompt},
-                {"role": "user",   "content": note_text},
+                {"role": "system", "content": TAGGER_SYSTEM_PROMPT},
+                {"role": "user", "content": note_text}
             ],
-            output_format="json",
+            output_format='json'
         )
-        return json.loads(response["message"]["content"])
+        print(response)
+        raw = response["message"]["content"]
+        tags = json.loads(raw)
+        return tags
 
     def summarizer_agent(self, note_text: str, tags: list[str]) -> str:
-        user_message = (
-            f"Note:\n{note_text}\n\n"
-            f"Tags identified for this note: {', '.join(tags)}"
-        )
+        SUMMARIZER_SYSTEM_PROMPT = """
+        You are a note summarization agent. Your job is to write a concise summary of a note.
+
+        Rules:
+        - Write at most 2-3 sentences
+        - Focus on the core idea or insight of the note, not peripheral details
+        - Use the provided tags as a guide for what the note is primarily about
+        - Do not include opinions or evaluation of the content
+        - Return ONLY the summary text, nothing else — no preamble, no labels
+
+        Example output:
+        The attention mechanism is the key idea in transformer models and it allows the model to weigh the relevance of different tokens. There are two types of attention: self-attention and cross-attention, and they're calculated using a scaled dot-product operation. The original 'Attention Is All You Need' paper is a key source.
+        """
+
+        user_message = f"""Note:
+        {note_text}
+
+        Tags identified for this note: {', '.join(tags)}
+        """
+
         response = self.model_chat(
             messages=[
-                {"role": "system", "content": self.summarizer_prompt},
-                {"role": "user",   "content": user_message},
+                {"role": "system", "content": SUMMARIZER_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message}
             ]
         )
         return response["message"]["content"]
@@ -185,12 +198,8 @@ class Agent:
         user_message = f"""Current note:
             Tags: {current_note_tags}
             Summary: {current_note_summary}
-<<<<<<< HEAD
-
-=======
             Full text: {current_note_content}
-            
->>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
+
             Candidate:
             Tags: {candidate_note_tags}
             Summary: {candidate_note_summary}
@@ -208,37 +217,10 @@ class Agent:
         return parsed
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
-<<<<<<< HEAD
-    parser = argparse.ArgumentParser(description="Second Brain agent pipeline.")
-    parser.add_argument("--vaultpath",          required=True,  help="Absolute path to your vault folder.")
-    parser.add_argument("--inputfile",                          help="Note to process (relative to vaultpath). Omit to bulk-index.")
-    parser.add_argument("--architecture",        default="multi_agent",
-                        choices=["single_agent", "multi_agent", "multi_agent_overseer"],
-                        help="Agent architecture to run (default: multi_agent).")
-    parser.add_argument("--tagger-prompt",       default="v1",  help="Prompt version for tagger (e.g. v1, v2).")
-    parser.add_argument("--summarizer-prompt",   default="v1",  help="Prompt version for summarizer.")
-    parser.add_argument("--agent-model",         default="qwen3.5:9b", help="Ollama model for agents.")
-    parser.add_argument("--embed-model",         default="mxbai-embed-large", help="Ollama model for embeddings.")
-    parser.add_argument("--temperature",         default=0.3,   type=float, help="Sampling temperature (default 0.3).")
-    parser.add_argument("--experiment",          default="baseline", help="Log category → experiments/<name>.jsonl.")
-    parser.add_argument("--label",               default="",    help="Free-form run label.")
-=======
     parser = argparse.ArgumentParser(description="A script that greets you.")
     parser.add_argument("--vaultpath", type=str, help="Absolute path to your vault.", required=True)
     parser.add_argument("--inputfile", type=str, help="The note to tag, summarize, and link related notes to.")
     parser.add_argument("--output", type=str, default="single_agent_results.csv")
->>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
     args = parser.parse_args()
-
-    main(
-        args.vaultpath, args.inputfile,
-        args.tagger_prompt, args.summarizer_prompt,
-        args.agent_model, args.embed_model,
-        args.experiment, args.label,
-        args.architecture, args.temperature,
-    )
+    main(args.vaultpath, args.inputfile)
