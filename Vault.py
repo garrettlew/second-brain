@@ -2,7 +2,25 @@ import chromadb
 from pathlib import Path
 
 class Vault:
+    """
+    Manages the Obsidian vault and its vector database index.
+
+    Handles indexing of mark down notes into a ChromaDB collection,
+    including generating tags, summaries, and embeddings for each note.
+    Also provides utilities for querying and updating notes with related links.
+    """
+
     def __init__(self, vault_path, model_client, agent, model_type="mxbai-embed-large"):
+        """
+        Initializes the Vault and indexes any unindexed mark down notes.
+
+        Args:
+            vault_path (str): Absolute path to the Obsidian vault directory.
+            model_client: The Ollama client used for embeddings and chat.
+            agent: The Agent instance used for tagging and summarization.
+            model_type (str): The embedding model to use. Defaults to 'mxbai-embed-large'.
+        """
+
         self.vault_path = vault_path
         self.model_client = model_client
         self.vector_db = chromadb.PersistentClient()
@@ -25,6 +43,14 @@ class Vault:
 
 
     def index_vault(self):
+        """
+        Scans the vault directory and indexes any mark down notes not yet in the collection.
+
+        For each unindexed note, generates tags, a summary, and an embedding,
+        then stores them in the vector database. Prints a summary of how many
+        notes were indexed vs skipped.
+        """
+
         existing_ids = set(self.collection.get()["ids"])  # what's already indexed
         index_metrics = {"indexed": 0, "skipped": 0}
 
@@ -48,6 +74,18 @@ class Vault:
 
 
     def index_note(self, filename, text, metadata_list=None):
+        """
+        Generates an embedding for a note and adds it to the vector database.
+
+        Skips indexing if the note is already present in the collection.
+
+        Args:
+            filename (str): The relative path of the note from the vault root, used as its ID.
+            text (str): The text to embed and store (typically the note's summary).
+            metadata_list (list[dict], optional): Metadata to store alongside the note,
+                such as tags and last modified time.
+        """
+
         existing_ids = set(self.collection.get()["ids"])  # what's already indexed
         if filename not in existing_ids:
             response = self.model_client.embeddings(
@@ -63,6 +101,19 @@ class Vault:
             )
 
     def append_links_to_note(self, filename: str, links: list[dict]):
+        """
+         Appends a 'Related Notes' section to a note with links that don't already exist in it.
+
+         Reads the note's current content and filters out any links already present
+         before writing, preventing duplicate entries.
+
+         Args:
+             filename (str): The relative path of the note from the vault root.
+             links (list[dict]): A list of links to append, each with keys:
+                 - "id": the linked note's filename (used to construct the [[wikilink]])
+                 - "reason": one sentence explaining the connection
+         """
+
         filepath = Path(self.vault_path) / filename
         content = filepath.read_text()
 
