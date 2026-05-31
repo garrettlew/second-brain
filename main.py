@@ -3,6 +3,7 @@ import concurrent.futures
 import json
 import ollama
 
+from evaluation_helper import run_evaluation
 from pathlib import Path
 from pydantic import BaseModel
 from Vault import Vault
@@ -39,26 +40,20 @@ def main(vault_path: str, inputfile: str):
         #     vault.append_links_to_note(inputfile, links)
 
     else:
-        # test_filepath = Path('/Users/garrettlew/vault/example.md')
-        # test_note_text = test_filepath.read_text()
-        test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
+        run_evaluation(agent, model_client, vault, args.output, run_multi_agent)
 
-        # 1. Generate tags
-        tags = agent.tagger_agent(test_note_text)
-        print(tags)
-        # response = agent.model_chat([{"role": "user","content": "Hello world!"}])
 
-        # 2. Use note + tags to generate summary
-        summary = agent.summarizer_agent(test_note_text, tags)
-        print(summary)
-
-        # 3. Use summary to create embedding to store in vector database
-        embedding_response = model_client.embeddings(
-            prompt=summary,
-            model="mxbai-embed-large"
-        )
-        print(embedding_response)
-
+def run_multi_agent(model_client, raw_input_note, candidate_notes):
+    agent = Agent(model_client)
+    tags = agent.tagger_agent(raw_input_note)
+    summary = agent.summarizer_agent(raw_input_note, tags)
+    links = run_linker_agents(agent, tags, summary, raw_input_note, candidate_notes)
+    result = {
+        "tags": tags,
+        "summary": summary,
+        "links": links
+    }
+    return result
 
 def run_linker_agents(agent, current_note_tags, current_note_summary, current_note_content, candidate_note_results):
     """
@@ -86,10 +81,10 @@ def run_linker_agents(agent, current_note_tags, current_note_summary, current_no
                 current_note_tags,
                 current_note_summary,
                 current_note_content,
-                candidate_note_results['metadatas'][0][i].get('tags'),
-                candidate_note_results['documents'][0][i]
-            ): candidate_note_results['ids'][0][i]
-            for i in range(1, len(candidate_note_results['ids'][0]))
+                candidate_note_results[i]["tags"],
+                candidate_note_results[i]["summary"]
+            ): candidate_note_results[i]["note_title"]
+            for i in range(len(candidate_note_results))
         }
 
     links = []
@@ -226,5 +221,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A script that greets you.")
     parser.add_argument("--vaultpath", type=str, help="Absolute path to your vault.", required=True)
     parser.add_argument("--inputfile", type=str, help="The note to tag, summarize, and link related notes to.")
+    parser.add_argument("--output", type=str, default="single_agent_results.csv")
     args = parser.parse_args()
     main(args.vaultpath, args.inputfile)
