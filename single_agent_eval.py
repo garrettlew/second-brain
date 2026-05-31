@@ -1,21 +1,26 @@
 import argparse
-import csv
 import json
+<<<<<<< HEAD
 import platform
 import resource
 import threading
 import time
 from pathlib import Path
+=======
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
 
-import chromadb
 import ollama
 import psutil
 
+from main import Agent
+from Vault import Vault
+from evaluation_helper import run_evaluation
+
 
 AGENT_MODEL = "qwen3.5:9b"
-EMBED_MODEL = "mxbai-embed-large"
 
 
+<<<<<<< HEAD
 def peak_rss_mb() -> float:
     """Return peak resident set size of this process in MB (macOS returns bytes, Linux returns KiB)."""
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -66,85 +71,73 @@ def get_embedding(model_client, text):
         model=EMBED_MODEL
     )
     return response["embedding"]
+=======
+def safe_json_loads(raw_output):
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        start = raw_output.find("{")
+        end = raw_output.rfind("}") + 1
+
+        if start != -1 and end != -1:
+            return json.loads(raw_output[start:end])
+
+        raise
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
 
 
-def index_vault(vault_path, model_client, collection):
-    existing_ids = set(collection.get()["ids"])
-    indexed = 0
-    skipped = 0
-
-    for filepath in Path(vault_path).rglob("*.md"):
-        note_id = str(filepath.relative_to(vault_path))
-
-        if note_id in existing_ids:
-            skipped += 1
-            continue
-
-        note_text = filepath.read_text(errors="ignore")
-        embedding = get_embedding(model_client, note_text)
-
-        collection.add(
-            ids=[note_id],
-            embeddings=[embedding],
-            documents=[note_text],
-            metadatas=[{"filename": note_id}]
-        )
-
-        indexed += 1
-        print(f"Indexed: {note_id}")
-
-    print(f"Indexing complete. Indexed: {indexed}, skipped: {skipped}")
-
-
-def query_related_notes(note_id, note_text, model_client, collection, top_k=3):
-    total_notes = collection.count()
-
-    if total_notes <= 1:
-        return []
-
-    embedding = get_embedding(model_client, note_text)
-
-    results = collection.query(
-        query_embeddings=[embedding],
-        n_results=min(top_k + 1, total_notes)
+def call_json_agent(model_client, system_prompt, user_prompt):
+    response = model_client.chat(
+        model=AGENT_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        format="json",
+        stream=False,
+        think=False
     )
 
-    related_notes = []
-
-    for i, candidate_id in enumerate(results["ids"][0]):
-        if candidate_id == note_id:
-            continue
-
-        related_notes.append({
-            "note_title": candidate_id,
-            "content_preview": results["documents"][0][i][:700],
-            "distance": results["distances"][0][i]
-        })
-
-        if len(related_notes) == top_k:
-            break
-
-    return related_notes
+    raw_output = response["message"]["content"]
+    return safe_json_loads(raw_output)
 
 
-def run_single_agent(model_client, note_text, candidate_notes):
+def run_single_agent(model_client, raw_input_note, candidate_notes):
+    """
+    Single-agent baseline.
+
+    One general-purpose agent receives:
+    - raw input note
+    - input note summary
+    - input note tags
+    - candidate note summaries
+    - candidate note tags
+
+    Then it generates tags, summary, and links in one call.
+    """
+
     system_prompt = """
 You are a general-purpose Obsidian note enrichment agent.
 
 Your job is to do all note-enrichment tasks in ONE response:
-1. Generate exactly 3 relevant tags.
-2. Write a faithful 2-3 sentence summary.
-3. Choose up to 3 related notes from the provided candidate notes.
-4. For each related note, explain why it is related.
+1. Generate exactly 3 relevant tags for the input note.
+2. Write a faithful 2-3 sentence summary of the input note.
+3. Using the generated tags and summary of the input note, choose up to 3 related notes from the candidate notes.
+4. For each selected related note, explain why it is related.
+
+Context design:
+- You will receive the raw input note.
+- You will receive candidate note summaries and candidate note tags.
+- Candidate notes were retrieved using the shared Vault.py ChromaDB setup.
+- You must only choose links from the candidate notes.
 
 Rules:
 - Tags must be lowercase and hyphenated.
-- Do not invent related notes.
-- Only select related notes from the candidate notes.
+- Do not invent related note filenames.
 - If none of the candidate notes are meaningfully related, return an empty list for links.
 - Return ONLY valid JSON.
 
-Return JSON in this exact format:
+JSON format:
 {
   "tags": ["tag1", "tag2", "tag3"],
   "summary": "2-3 sentence summary.",
@@ -159,19 +152,24 @@ Return JSON in this exact format:
 
     candidate_text = "\n\n".join(
         [
-            f"Candidate note: {note['note_title']}\nPreview: {note['content_preview']}"
+            (
+                f"Candidate note: {note['note_title']}\n"
+                f"Candidate tags: {', '.join(note['tags'])}\n"
+                f"Candidate summary: {note['summary']}"
+            )
             for note in candidate_notes
         ]
     )
 
     user_prompt = f"""
-Input note:
-{note_text}
+Raw input note:
+{raw_input_note}
 
 Candidate related notes:
 {candidate_text}
 """
 
+<<<<<<< HEAD
     response = model_client.chat(
         model=AGENT_MODEL,
         messages=[
@@ -260,6 +258,9 @@ def run_evaluation(vault_path, output_csv):
         writer.writerows(rows)
 
     print(f"\nSaved evaluation results to: {output_csv}")
+=======
+    return call_json_agent(model_client, system_prompt, user_prompt)
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
 
 
 if __name__ == "__main__":
@@ -267,5 +268,8 @@ if __name__ == "__main__":
     parser.add_argument("--vaultpath", type=str, required=True)
     parser.add_argument("--output", type=str, default="single_agent_results.csv")
     args = parser.parse_args()
-
-    run_evaluation(args.vaultpath, args.output)
+    model_client = ollama.Client(host="http://localhost:11434")
+    agent = Agent(model_client)
+    vault_path = args.vaultpath
+    vault = Vault(vault_path, model_client, agent)
+    run_evaluation(agent, model_client, vault, args.output, run_single_agent)

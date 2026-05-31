@@ -79,3 +79,9 @@ python3 --vaultpath <PATH_TO_VAULT_FOLDER> --inputfile <FILE_TO_GET_LINKS_FOR>
 ```shell
 python3 --vaultpath /Users/garrettlew/vault/ --inputfile example.md
 ```
+
+## Data Sources
+
+- **UCSC Vault**: Personal Obsidian notes from UCSC coursework (27 notes)
+- **OMSCS Notes**: 15 notes selected from [m4ttsch/omscs-notes-notes](https://github.com/m4ttsch/omscs-notes-notes)
+  (MIT License, © 2019 Matthew Schlenker). Used with permission per license terms.

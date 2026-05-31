@@ -1,7 +1,10 @@
 import argparse
+import concurrent.futures
 import json
 import ollama
 
+from evaluation_helper import run_evaluation
+from pathlib import Path
 from pydantic import BaseModel
 from Vault import Vault
 
@@ -12,6 +15,7 @@ def main(vault_path: str, inputfile: str):
     agent = Agent(model_client)
     vault = Vault(vault_path, model_client, agent)
     if inputfile:
+<<<<<<< HEAD
         print(f"Input File: {inputfile}")
     print(f"Architecture: {architecture} | Model: {agent_model} | Temp: {temperature}\n")
 
@@ -23,6 +27,11 @@ def main(vault_path: str, inputfile: str):
         "single_agent": load_prompt("single_agent", "v1"),
         "overseer":     load_prompt("overseer", "v1"),
     }
+=======
+        print("Input File: {}".format(inputfile))
+        current_note_filepath = Path(vault.vault_path) / inputfile
+        current_note_content = current_note_filepath.read_text()
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
 
         current_note_results = vault.collection.get(
             ids=[inputfile],
@@ -38,46 +47,69 @@ def main(vault_path: str, inputfile: str):
             n_results=4  # ask for 4, discard the first (self)
         )
 
-        # skip index 0 — that's the note itself
-        # related = results["ids"][0][1:]
-        print("IDs: {}".format(candidate_note_results['ids'][0]))
-        print("Distances: {}".format(candidate_note_results['distances'][0]))
-        candidate_note_id = candidate_note_results['ids'][0][3]
-        candidate_note_summary = candidate_note_results['documents'][0][3]
-        candidate_note_metadata = candidate_note_results['metadatas'][0][3]
-        candidate_note_tags = candidate_note_metadata.get('tags')
+        links = run_linker_agents(agent, current_note_tags, current_note_summary, current_note_content, candidate_note_results)
+        print(links)
 
-        judgement = agent.linker_agent(current_note_tags, current_note_summary, candidate_note_tags,
-                                       candidate_note_summary)
+        # if links:
+        #     vault.append_links_to_note(inputfile, links)
 
-        print(judgement.relevant)
-        print(judgement.reason)
-        links = []
-        if judgement.relevant:
-            link = {"id": candidate_note_id, "reason": judgement.reason}
-            links.append(link)
-            vault.append_links_to_note(inputfile, links)
     else:
-        # test_filepath = Path('/Users/garrettlew/vault/example.md')
-        # test_note_text = test_filepath.read_text()
-        test_note_text = "The Talyllyn Railway is a narrow-gauge preserved railway in Wales running for 7.25 miles (11.67 km) from Tywyn on the Mid Wales coast to Nant Gwernol near the village of Abergynolwyn. The line was opened in 1866 to carry slate from the quarries at Bryn Eglwys to Tywyn, and was the first narrow-gauge railway in Britain authorised by act of Parliament to carry passengers using steam haulage. Despite severe under-investment, the line remained open, and on 14 May 1951 it became the first railway in the world to be operated as a heritage railway by volunteers. Since preservation, the railway has operated as a tourist attraction, significantly expanding its rolling stock through acquisition and an engineering programme to build new locomotives and carriages. The fictional Skarloey Railway, which formed part of the Railway Series of children's books by the Rev. W Awdry, was based on the Talyllyn Railway. The preservation of the line inspired the Ealing comedy film The Titfield Thunderbolt. "
+        run_evaluation(agent, model_client, vault, args.output, run_multi_agent)
 
-        # 1. Generate tags
-        tags = agent.tagger_agent(test_note_text)
-        print(tags)
-        # response = agent.model_chat([{"role": "user","content": "Hello world!"}])
 
-        # 2. Use note + tags to generate summary
-        summary = agent.summarizer_agent(test_note_text, tags)
-        print(summary)
+def run_multi_agent(model_client, raw_input_note, candidate_notes):
+    agent = Agent(model_client)
+    tags = agent.tagger_agent(raw_input_note)
+    summary = agent.summarizer_agent(raw_input_note, tags)
+    links = run_linker_agents(agent, tags, summary, raw_input_note, candidate_notes)
+    result = {
+        "tags": tags,
+        "summary": summary,
+        "links": links
+    }
+    return result
 
-        # 3. Use summary to create embedding to store in vector database
-        embedding_response = model_client.embeddings(
-            prompt=summary,
-            model="mxbai-embed-large"
-        )
-        print(embedding_response)
+def run_linker_agents(agent, current_note_tags, current_note_summary, current_note_content, candidate_note_results):
+    """
+    Runs linker agent calls in parallel for each candidate note and returns relevant links.
 
+    Skips the first candidate result (index 0) as it is the input note itself.
+
+    Args:
+        agent: The Agent instance used to call linker_agent.
+        current_note_tags (list[str]): Tags for the current note.
+        current_note_summary (str): Summary of the current note.
+        current_note_content (str): Raw text content of the current note.
+        candidate_note_results (dict): Query results from the vector DB containing
+            ids, documents, and metadatas for candidate notes.
+
+    Returns:
+        list[dict]: A list of relevant links, each with keys:
+            - "id": the candidate note's ID
+            - "reason": one sentence explaining the connection
+    """
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(
+                agent.linker_agent,
+                current_note_tags,
+                current_note_summary,
+                current_note_content,
+                candidate_note_results[i]["tags"],
+                candidate_note_results[i]["summary"]
+            ): candidate_note_results[i]["note_title"]
+            for i in range(len(candidate_note_results))
+        }
+
+    links = []
+    for future in concurrent.futures.as_completed(futures):
+        candidate_id = futures[future]
+        judgement = future.result()
+        print(f"Future {candidate_id} returned. Judgement: {judgement}.")
+        if judgement.relevant:
+            links.append({"id": candidate_id, "reason": judgement.reason})
+
+    return links
 
 class Judgement(BaseModel):
     relevant: bool
@@ -128,7 +160,7 @@ class Agent:
         )
         return response["message"]["content"]
 
-    def linker_agent(self, current_note_tags: list[str], current_note_summary: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
+    def linker_agent(self, current_note_tags: list[str], current_note_summary: str, current_note_content: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
         LINKER_SYSTEM_PROMPT = """
         You are a note linking agent. Your job is to decide if the provided candidate note is
         genuinely relevant to link to the current note.
@@ -150,10 +182,15 @@ class Agent:
             {"relevant": false, "reason": "Not related as the candidate note is about fence post embeddings while the current note is about the embeddings output of transformer encoders"}
         """
 
-        user_message = f"""Current note summary:
+        user_message = f"""Current note:
             Tags: {current_note_tags}
             Summary: {current_note_summary}
+<<<<<<< HEAD
 
+=======
+            Full text: {current_note_content}
+            
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
             Candidate:
             Tags: {candidate_note_tags}
             Summary: {candidate_note_summary}
@@ -176,6 +213,7 @@ class Agent:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     parser = argparse.ArgumentParser(description="Second Brain agent pipeline.")
     parser.add_argument("--vaultpath",          required=True,  help="Absolute path to your vault folder.")
     parser.add_argument("--inputfile",                          help="Note to process (relative to vaultpath). Omit to bulk-index.")
@@ -189,6 +227,12 @@ if __name__ == "__main__":
     parser.add_argument("--temperature",         default=0.3,   type=float, help="Sampling temperature (default 0.3).")
     parser.add_argument("--experiment",          default="baseline", help="Log category → experiments/<name>.jsonl.")
     parser.add_argument("--label",               default="",    help="Free-form run label.")
+=======
+    parser = argparse.ArgumentParser(description="A script that greets you.")
+    parser.add_argument("--vaultpath", type=str, help="Absolute path to your vault.", required=True)
+    parser.add_argument("--inputfile", type=str, help="The note to tag, summarize, and link related notes to.")
+    parser.add_argument("--output", type=str, default="single_agent_results.csv")
+>>>>>>> 892eb2aecb095f5494bcd7724995c46fc6303e41
     args = parser.parse_args()
 
     main(
