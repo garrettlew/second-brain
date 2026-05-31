@@ -1,15 +1,63 @@
 import argparse
 import csv
 import json
+import platform
+import resource
+import threading
 import time
 from pathlib import Path
 
 import chromadb
 import ollama
+import psutil
 
 
 AGENT_MODEL = "qwen3.5:9b"
 EMBED_MODEL = "mxbai-embed-large"
+
+
+def peak_rss_mb() -> float:
+    """Return peak resident set size of this process in MB (macOS returns bytes, Linux returns KiB)."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if platform.system() == "Darwin":
+        return rss / 1024 / 1024
+    return rss / 1024
+
+
+def sample_ollama_peak_mb() -> tuple[float | None, threading.Event]:
+    """
+    Start a background thread that polls the ollama process RSS every 50 ms.
+    Returns (result_container, stop_event). After stopping, result_container[0]
+    holds the peak RSS in MB, or None if ollama was not found.
+    """
+    stop_event = threading.Event()
+    result = [None]
+
+    def _sample():
+        peak = 0.0
+        ollama_proc = None
+        for proc in psutil.process_iter(["name", "pid"]):
+            if "ollama" in proc.info["name"].lower():
+                try:
+                    ollama_proc = psutil.Process(proc.info["pid"])
+                except psutil.NoSuchProcess:
+                    pass
+                break
+        if ollama_proc is None:
+            return
+        while not stop_event.is_set():
+            try:
+                rss = ollama_proc.memory_info().rss / 1024 / 1024
+                if rss > peak:
+                    peak = rss
+            except psutil.NoSuchProcess:
+                break
+            stop_event.wait(0.05)
+        result[0] = peak if peak > 0 else None
+
+    t = threading.Thread(target=_sample, daemon=True)
+    t.start()
+    return result, stop_event, t
 
 
 def get_embedding(model_client, text):
@@ -165,6 +213,8 @@ def run_evaluation(vault_path, output_csv):
         )
 
         start_time = time.time()
+        rss_before = peak_rss_mb()
+        ollama_result, stop_event, sampler_thread = sample_ollama_peak_mb()
 
         try:
             result = run_single_agent(model_client, note_text, candidate_notes)
@@ -177,7 +227,11 @@ def run_evaluation(vault_path, output_csv):
             }
             error = str(e)
 
+        stop_event.set()
+        sampler_thread.join(timeout=1.0)
         latency = time.time() - start_time
+        peak_rss_client = round(peak_rss_mb() - rss_before, 2)
+        peak_rss_ollama = round(ollama_result[0], 2) if ollama_result[0] is not None else None
 
         rows.append({
             "condition": "single_agent",
@@ -187,6 +241,8 @@ def run_evaluation(vault_path, output_csv):
             "summary": result.get("summary", ""),
             "links": json.dumps(result.get("links", [])),
             "latency_seconds": round(latency, 3),
+            "peak_rss_client_mb": peak_rss_client,
+            "peak_rss_ollama_mb": peak_rss_ollama,
             "tag_relevance_score": "",
             "summary_faithfulness_score": "",
             "link_quality_score": "",
