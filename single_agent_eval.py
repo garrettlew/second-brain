@@ -51,12 +51,11 @@ def call_json_agent(model_client, system_prompt, user_prompt):
 
 def generate_note_setup(model_client, note_text):
     """
-    Generates setup metadata for retrieval/indexing:
+    Generate setup metadata for each note:
     tags + summary.
 
-    Important:
     These are stored in ChromaDB so candidate notes can be represented
-    by summaries/tags instead of truncated raw previews.
+    by summaries/tags instead of truncated raw note previews.
     """
 
     system_prompt = """
@@ -88,14 +87,14 @@ Markdown note:
 
 def index_vault_with_summary_embeddings(vault_path, model_client, collection):
     """
-    Indexes each Markdown note using the note summary embedding.
+    Index each Markdown note using the note summary embedding.
 
     ChromaDB document = note summary
     ChromaDB metadata = filename, tags, word_count, character_count
 
-    This matches the current design decision:
-    summary embeddings are used to retrieve candidates efficiently,
-    especially for larger notes.
+    This follows the current experiment design:
+    summary embeddings are used for retrieval, while the agent still
+    receives richer context during reranking/linking.
     """
 
     existing_ids = set(collection.get()["ids"])
@@ -140,7 +139,7 @@ def index_vault_with_summary_embeddings(vault_path, model_client, collection):
 
 def get_note_setup_from_chromadb(collection, note_id):
     """
-    Gets the stored summary and tags for a note from ChromaDB.
+    Get the stored summary and tags for an input note from ChromaDB.
     """
 
     result = collection.get(
@@ -168,8 +167,8 @@ def get_note_setup_from_chromadb(collection, note_id):
 
 def query_related_notes(note_id, input_summary, model_client, collection, final_k=3):
     """
-    Retrieves top 4 candidates using the input note summary embedding,
-    excludes the input note itself, then keeps top 3.
+    Retrieve top 4 candidates using the input note summary embedding,
+    exclude the input note itself, then keep top 3.
 
     This avoids returning the note as its own related note.
     """
@@ -181,7 +180,6 @@ def query_related_notes(note_id, input_summary, model_client, collection, final_
 
     query_embedding = get_embedding(model_client, input_summary)
 
-    # Get top 4 so we can remove the input note and still keep 3 candidates.
     raw_k = min(final_k + 1, total_notes)
 
     results = collection.query(
@@ -214,12 +212,18 @@ def query_related_notes(note_id, input_summary, model_client, collection, final_
     return related_notes
 
 
-def run_single_agent(model_client, raw_input_note, candidate_notes):
+def run_single_agent(model_client, raw_input_note, input_summary, input_tags, candidate_notes):
     """
     Single-agent baseline.
 
-    One general-purpose agent receives the raw input note and candidate
-    summaries/tags, then generates tags, summary, and links in one call.
+    One general-purpose agent receives:
+    - raw input note
+    - input note summary
+    - input note tags
+    - candidate note summaries
+    - candidate note tags
+
+    Then it generates tags, summary, and links in one call.
     """
 
     system_prompt = """
@@ -233,6 +237,7 @@ Your job is to do all note-enrichment tasks in ONE response:
 
 Context design:
 - You will receive the raw input note.
+- You will also receive the input note's setup summary and setup tags.
 - You will receive candidate note summaries and candidate note tags.
 - Candidate notes were retrieved using summary embeddings.
 - You must only choose links from the candidate notes.
@@ -271,6 +276,12 @@ JSON format:
 Raw input note:
 {raw_input_note}
 
+Input note setup summary:
+{input_summary}
+
+Input note setup tags:
+{', '.join(input_tags)}
+
 Candidate related notes:
 {candidate_text}
 """
@@ -299,7 +310,8 @@ def run_evaluation(vault_path, output_csv):
 
         try:
             input_setup = get_note_setup_from_chromadb(collection, note_id)
-            input_summary = input_setup["summary"]
+            input_summary = input_setup.get("summary", "")
+            input_tags = input_setup.get("tags", [])
 
             candidate_notes = query_related_notes(
                 note_id=note_id,
@@ -310,17 +322,22 @@ def run_evaluation(vault_path, output_csv):
             )
 
             start_agent = time.time()
+
             result = run_single_agent(
                 model_client=model_client,
                 raw_input_note=raw_input_note,
+                input_summary=input_summary,
+                input_tags=input_tags,
                 candidate_notes=candidate_notes
             )
-            agent_latency = time.time() - start_agent
 
+            agent_latency = time.time() - start_agent
             error = ""
 
         except Exception as e:
             input_setup = {"summary": "", "tags": []}
+            input_summary = ""
+            input_tags = []
             candidate_notes = []
             result = {
                 "tags": [],
@@ -337,8 +354,8 @@ def run_evaluation(vault_path, output_csv):
             "note_id": note_id,
             "word_count": len(raw_input_note.split()),
             "character_count": len(raw_input_note),
-            "input_setup_summary": input_setup.get("summary", ""),
-            "input_setup_tags": json.dumps(input_setup.get("tags", [])),
+            "input_setup_summary": input_summary,
+            "input_setup_tags": json.dumps(input_tags),
             "candidate_notes": json.dumps(candidate_notes),
             "generated_tags": json.dumps(result.get("tags", [])),
             "generated_summary": result.get("summary", ""),
