@@ -34,6 +34,7 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
             input_summary = input_setup.get("summary", "")
             input_tags = input_setup.get("tags", [])
             input_embedding = input_setup.get("embedding", [])
+            raw_input_note = "title: {}\n".format(note_id) + raw_input_note
 
             candidate_notes = vault.query_related_notes_from_vault(
                 note_id=note_id,
