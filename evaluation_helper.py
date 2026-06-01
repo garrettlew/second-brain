@@ -1,18 +1,21 @@
 import csv
 import json
+import platform
+import psutil
+import resource
+import threading
 import time
 
 from pathlib import Path
 from Vault import Vault
 
+
 def run_evaluation(vault: Vault, output_csv, run_agent_system):
-    # model_client = ollama.Client(host="http://localhost:11434")
-    #
-    # # Shared setup:
-    # # Agent is used by Vault.py to generate tags and summaries during indexing.
-    # # Vault.py owns the ChromaDB collection and embedding/indexing setup.
-    # agent = Agent(model_client)
-    # vault = Vault(vault_path, model_client, agent)
+    """
+    Run the experiment on the given run_agent_system function
+
+    Track latency and peak memory usage. And save the outputs to a csv file.
+    """
 
     rows = []
 
@@ -23,6 +26,8 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
         print(f"\nProcessing note: {note_id}")
 
         start_total = time.time()
+        peak_rss_client = None
+        peak_rss_ollama = None
 
         try:
             input_setup = vault.get_note_setup_from_vault(note_id)
@@ -37,13 +42,21 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
             )
 
             start_agent = time.time()
+            rss_before = peak_rss_mb()
+            ollama_result, stop_event, sampler_thread = sample_ollama_peak_mb()
 
-            result = run_agent_system(
-                raw_input_note=raw_input_note,
-                candidate_notes=candidate_notes
-            )
+            try:
+                result = run_agent_system(
+                    raw_input_note=raw_input_note,
+                    candidate_notes=candidate_notes
+                )
+            finally:
+                stop_event.set()
+                sampler_thread.join(timeout=1.0)
 
             agent_latency = time.time() - start_agent
+            peak_rss_client = round(peak_rss_mb() - rss_before, 2)
+            peak_rss_ollama = round(ollama_result[0], 2) if ollama_result[0] is not None else None
             error = ""
 
         except Exception as e:
@@ -73,6 +86,8 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
             "generated_links": json.dumps(result.get("links", [])),
             "agent_latency_seconds": round(agent_latency, 3),
             "total_latency_seconds": round(total_latency, 3),
+            "peak_rss_client_mb": peak_rss_client,
+            "peak_rss_ollama_mb": peak_rss_ollama,
             "tag_relevance_score": "",
             "summary_faithfulness_score": "",
             "link_quality_score": "",
@@ -90,3 +105,47 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
         writer.writerows(rows)
 
     print(f"\nSaved evaluation results to: {output_csv}")
+
+
+def peak_rss_mb() -> float:
+    """Return peak resident set size of this process in MB (macOS returns bytes, Linux returns KiB)."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if platform.system() == "Darwin":
+        return rss / 1024 / 1024
+    return rss / 1024
+
+
+def sample_ollama_peak_mb() -> tuple[float | None, threading.Event]:
+    """
+    Start a background thread that polls the ollama process RSS every 50 ms.
+    Returns (result_container, stop_event). After stopping, result_container[0]
+    holds the peak RSS in MB, or None if ollama was not found.
+    """
+    stop_event = threading.Event()
+    result = [None]
+
+    def _sample():
+        peak = 0.0
+        ollama_proc = None
+        for proc in psutil.process_iter(["name", "pid"]):
+            if "ollama" in proc.info["name"].lower():
+                try:
+                    ollama_proc = psutil.Process(proc.info["pid"])
+                except psutil.NoSuchProcess:
+                    pass
+                break
+        if ollama_proc is None:
+            return
+        while not stop_event.is_set():
+            try:
+                rss = ollama_proc.memory_info().rss / 1024 / 1024
+                if rss > peak:
+                    peak = rss
+            except psutil.NoSuchProcess:
+                break
+            stop_event.wait(0.05)
+        result[0] = peak if peak > 0 else None
+
+    t = threading.Thread(target=_sample, daemon=True)
+    t.start()
+    return result, stop_event, t
