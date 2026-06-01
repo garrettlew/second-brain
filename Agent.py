@@ -80,7 +80,7 @@ class Agent:
         return response["message"]["content"]
 
 
-    def linker_agent(self, current_note_tags: list[str], current_note_summary: str, current_note_content: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
+    def linker_agent(self, current_note_data: dict, candidate_note_data: dict) -> list[dict]:
         LINKER_SYSTEM_PROMPT = """
         You are a note linking agent. Your job is to decide if the provided candidate note is
         genuinely relevant to link to the current note.
@@ -103,13 +103,10 @@ class Agent:
         """
 
         user_message = f"""Current note:
-            Tags: {current_note_tags}
-            Summary: {current_note_summary}
-            Full text: {current_note_content}
+            {json.dumps(current_note_data, indent=2)}
 
-            Candidate:
-            Tags: {candidate_note_tags}
-            Summary: {candidate_note_summary}
+            Candidate note:
+            {json.dumps(candidate_note_data, indent=2)}
 
             Decide if the candidate is genuinely worth linking to the current note ("relevant": True) and give a reason why."""
 
@@ -125,25 +122,20 @@ class Agent:
         # print(response.eval_count)
 
         content = response.message.content.strip()
-        if not content:
-            raise ValueError("linker_agent received empty response from model")
-        if not content.endswith("}"):
-            print("Adding } to {}".format(content))
-            if not content.endswith('"'):
-                content += '"'
-            content += "}"
+        content = try_to_fix_json(content)
         parsed = Judgement.model_validate_json(content)
         return parsed
 
 
-    def run_linker_agents(self, current_note_tags, current_note_summary, current_note_content, candidate_note_results):
+    def run_linker_agents(self, current_note_results: dict, candidate_note_results: list[dict]):
         """
         Runs linker agent calls in parallel for each candidate note and returns relevant links.
 
         Args:
-            current_note_tags (list[str]): Tags for the current note.
-            current_note_summary (str): Summary of the current note.
-            current_note_content (str): Raw text content of the current note.
+            current_note_results potentially has:
+                current_note_tags (list[str]): Tags for the current note.
+                current_note_summary (str): Summary of the current note.
+                current_note_content (str): Raw text content of the current note.
             candidate_note_results (dict): Query results from the vector DB containing
                 ids, documents, and metadatas for candidate notes.
 
@@ -156,11 +148,8 @@ class Agent:
             futures = {
                 executor.submit(
                     self.linker_agent,
-                    current_note_tags,
-                    current_note_summary,
-                    current_note_content,
-                    candidate_note_results[i]["tags"],
-                    candidate_note_results[i]["summary"]
+                    current_note_results,
+                    candidate_note_results[i]
                 ): candidate_note_results[i]["note_title"]
                 for i in range(len(candidate_note_results))
             }
@@ -257,13 +246,25 @@ class Agent:
         """
         tags = self.tagger_agent(raw_input_note)
         summary = self.summarizer_agent(raw_input_note, tags)
-        links = self.run_linker_agents(tags, summary, raw_input_note, candidate_notes)
-        result = {
+        current_note_data = {
             "tags": tags,
             "summary": summary,
-            "links": links
+            "full_text": raw_input_note
         }
-        return result
+        links = self.run_linker_agents(current_note_data, candidate_notes)
+        current_note_data["links"] = links
+        return current_note_data
+
+
+def try_to_fix_json(content):
+    # if not content:
+    #     raise ValueError("linker_agent received empty response from model")
+    if not content.endswith("}"):
+        print("Adding } to {}".format(content))
+        if not content.endswith('"'):
+            content += '"'
+        content += "}"
+    return content
 
 def safe_json_loads(raw_output):
     try:
