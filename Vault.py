@@ -10,7 +10,7 @@ class Vault:
     Also provides utilities for querying and updating notes with related links.
     """
 
-    def __init__(self, vault_path, model_client, agent, model_type="mxbai-embed-large"):
+    def __init__(self, vault_path, model_client, agent, model_type="mxbai-embed-large", chromadb_name="second-brain"):
         """
         Initializes the Vault and indexes any unindexed mark down notes.
 
@@ -24,14 +24,15 @@ class Vault:
         self.vault_path = vault_path
         self.model_client = model_client
         self.vector_db = chromadb.PersistentClient()
-        self.model_type = "mxbai-embed-large"
+        self.model_type = model_type
+        self.chromadb_name = chromadb_name
         # try:
         #     self.vector_db.delete_collection(name="second-brain")
         #     print("Old collection dropped successfully.")
         # except ValueError:
         #     print("Collection did not exist. Creating a fresh one.")
         self.collection = self.vector_db.get_or_create_collection(
-            name="second-brain",
+            name=self.chromadb_name,
             configuration={
                 "hnsw": {
                     "space": "cosine"
@@ -127,3 +128,85 @@ class Vault:
                 f.write("\n\n## Related Notes\n")
                 for link in new_links:
                     f.write(f"- [[{link["id"]}]] — {link["reason"]}\n")
+
+
+    def get_note_setup_from_vault(self, note_id):
+        """
+        Get the stored summary and tags for the input note from the shared Vault collection.
+        In Vault.py, the ChromaDB document is the generated summary, and tags are stored in metadata.
+        """
+
+        result = self.collection.get(
+            ids=[note_id],
+            include=["embeddings", "documents", "metadatas"]
+        )
+
+        if not result["ids"]:
+            return {
+                "summary": "",
+                "tags": []
+            }
+
+        summary = result["documents"][0]
+        metadata = result["metadatas"][0]
+        embedding = result['embeddings'][0]
+
+        return {
+            "embedding": embedding,
+            "summary": summary,
+            "tags": parse_tags(metadata)
+        }
+
+    def query_related_notes_from_vault(self, note_id, query_embedding, final_k=3) -> list[dict]:
+        """
+        Query the shared Vault ChromaDB collection.
+
+        We retrieve top 4 candidates, remove the input note itself if it appears,
+        and keep the top 3 real candidate notes.
+
+        Returns: [{
+                    "note_title": candidate_id,
+                    "summary": candidate_summary,
+                    "tags": parse_tags(candidate_metadata),
+                    "distance": results["distances"][0][i]
+                }, ...]
+        """
+
+        total_notes = self.collection.count()
+
+        if total_notes <= 1:
+            return []
+
+        raw_k = min(final_k + 1, total_notes)
+
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=raw_k,
+            include=["documents", "metadatas", "distances"]
+        )
+
+        related_notes = []
+
+        for i, candidate_id in enumerate(results["ids"][0]):
+            if candidate_id == note_id:
+                continue
+
+            candidate_summary = results["documents"][0][i]
+            candidate_metadata = results["metadatas"][0][i]
+
+            related_notes.append({
+                "note_title": candidate_id,
+                "summary": candidate_summary,
+                "tags": parse_tags(candidate_metadata),
+                "distance": results["distances"][0][i]
+            })
+
+            if len(related_notes) == final_k:
+                break
+
+        return related_notes
+
+
+def parse_tags(metadata):
+    tags_string = metadata.get("tags", "")
+    return [tag.strip() for tag in tags_string.split(",") if tag.strip()]

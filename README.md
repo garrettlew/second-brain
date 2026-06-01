@@ -16,7 +16,7 @@
 ```shell
 launchctl setenv OLLAMA_FLASH_ATTENTION 1
 launchctl setenv OLLAMA_KV_CACHE_TYPE q8_0
-launchctl setenv OLLAMA_NUM_PARALLEL 1
+launchctl setenv OLLAMA_NUM_PARALLEL <MAX Parallel Requests>
 ```
 
 3. (Optional) If you have another machine (Mac M1) to run inference:
@@ -74,11 +74,21 @@ tail -f ~/.ollama/logs/server.log
 
 ## Running
 
-python3 --vaultpath <PATH_TO_VAULT_FOLDER> --inputfile <FILE_TO_GET_LINKS_FOR>
-
+To run the experiment on every note in the vault:
 ```shell
-python3 --vaultpath /Users/garrettlew/vault/ --inputfile example.md
+python3 main.py --vaultpath <PATH_TO_VAULT_FOLDER> --output <NAME_OF_OUTPUT_CSV.csv>
+
+python3 main.py --vaultpath /Users/garrettlew/vault/ --output multi_agent_results.csv
 ```
+
+To find links for a single given note:
+```shell
+python3 main.py --vaultpath <PATH_TO_VAULT_FOLDER> --inputfile <FILE_TO_GET_LINKS_FOR>
+
+python3 main.py --vaultpath /Users/garrettlew/vault/ --inputfile example.md
+
+```
+
 
 ## Data Sources
 
