@@ -41,6 +41,8 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
                 final_k=3
             )
 
+            candidate_data = [remove_key(d, 'distance') for d in candidate_notes]
+
             start_agent = time.time()
             rss_before = peak_rss_mb()
             ollama_result, stop_event, sampler_thread = sample_ollama_peak_mb()
@@ -48,7 +50,7 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
             try:
                 result = run_agent_system(
                     raw_input_note=raw_input_note,
-                    candidate_notes=candidate_notes
+                    candidate_notes=candidate_data
                 )
             finally:
                 stop_event.set()
@@ -149,3 +151,9 @@ def sample_ollama_peak_mb() -> tuple[float | None, threading.Event]:
     t = threading.Thread(target=_sample, daemon=True)
     t.start()
     return result, stop_event, t
+
+
+def remove_key(d, key):
+    new_d = d.copy()      # Create a shallow copy (fast C-level operation)
+    new_d.pop(key, None)  # Remove the key safely (O(1) operation)
+    return new_d
