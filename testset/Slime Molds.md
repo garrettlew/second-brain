@@ -1,0 +1,6 @@
+In its plasmodium stage, _Physarum polycephalum_ (also known as “the blob”), looks like an expanding viscous fluid extending tiny fingers in various directions. As it grows, it pushes its fluid innards into these pulsating protuberances, creating a network of nutrient-carrying tubes. Tubes that encounter nourishment grow more robust. Those that fail to find food shrink back, leaving a trail that tells the organism not to bother heading that way again.
+Over time, the slime mold takes on the form of a network that looks like a conglomeration of spokes—the successful food-carrying tubes—and hubs—the food sources it discovered during its explorations. Through trial and error, what initially appears to be directionless growth leads to the development of a highly efficient and dynamic food acquisition and transportation structure.
+
+The process doesn’t just minimize the distance the slime mold needs to reach each food source. Rather, the creature is able to find the “sweet spot” among multiple, sometimes competing, goals. Those goals include minimizing the length of tubes, minimizing average distance food needs to travel, avoiding adversity, and maximizing the ability to cope with accidental disruption.
+
+This process is so effective that a slime mold can use it to solve a maze or optimize networks among artificially placed nodes.
