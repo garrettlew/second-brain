@@ -44,10 +44,11 @@ class Agent:
             ],
             output_format='json'
         )
-        print(response)
+        # print(response)
         raw = response["message"]["content"]
         tags = json.loads(raw)
         return tags
+
 
     def summarizer_agent(self, note_text: str, tags: list[str]) -> str:
         SUMMARIZER_SYSTEM_PROMPT = """
@@ -77,6 +78,7 @@ class Agent:
             ]
         )
         return response["message"]["content"]
+
 
     def linker_agent(self, current_note_tags: list[str], current_note_summary: str, current_note_content: str, candidate_note_tags: list[str], candidate_note_summary: str) -> list[dict]:
         LINKER_SYSTEM_PROMPT = """
@@ -118,8 +120,21 @@ class Agent:
             ],
             output_format=Judgement.model_json_schema()
         )
-        parsed = Judgement.model_validate_json(response.message.content)
+        print(repr(response.message.content))
+        # print(response.prompt_eval_count)
+        # print(response.eval_count)
+
+        content = response.message.content.strip()
+        if not content:
+            raise ValueError("linker_agent received empty response from model")
+        if not content.endswith("}"):
+            print("Adding } to {}".format(content))
+            if not content.endswith('"'):
+                content += '"'
+            content += "}"
+        parsed = Judgement.model_validate_json(content)
         return parsed
+
 
     def run_linker_agents(self, current_note_tags, current_note_summary, current_note_content, candidate_note_results):
         """
@@ -154,9 +169,110 @@ class Agent:
         for future in concurrent.futures.as_completed(futures):
             candidate_id = futures[future]
             judgement = future.result()
-            print(f"Future {candidate_id} returned. Judgement: {judgement}.")
+            print(f"Future {candidate_id} returned. Judgement: {judgement.relevant} Reason: {judgement.reason}.")
             if judgement.relevant:
                 links.append({"id": candidate_id, "reason": judgement.reason})
 
         return links
 
+    def run_single_agent(self, raw_input_note, candidate_notes):
+        """
+        Single-agent baseline.
+
+        One general-purpose agent receives:
+        - raw input note
+        - input note summary
+        - input note tags
+        - candidate note summaries
+        - candidate note tags
+
+        Then it generates tags, summary, and links in one call.
+        """
+
+        system_prompt = """
+        You are a general-purpose Obsidian note enrichment agent.
+    
+        Your job is to do all note-enrichment tasks in ONE response:
+        1. Generate exactly 3 relevant tags for the input note.
+        2. Write a faithful 2-3 sentence summary of the input note.
+        3. Using the generated tags and summary of the input note, choose up to 3 related notes from the candidate notes.
+        4. For each selected related note, explain why it is related.
+    
+        Context design:
+        - You will receive the raw input note.
+        - You will receive candidate note summaries and candidate note tags.
+        - Candidate notes were retrieved using the shared Vault.py ChromaDB setup.
+        - You must only choose links from the candidate notes.
+    
+        Rules:
+        - Tags must be lowercase and hyphenated.
+        - Do not invent related note filenames.
+        - If none of the candidate notes are meaningfully related, return an empty list for links.
+        - Return ONLY valid JSON.
+    
+        JSON format:
+        {
+          "tags": ["tag1", "tag2", "tag3"],
+          "summary": "2-3 sentence summary.",
+          "links": [
+            {
+              "note_title": "filename.md",
+              "justification": "One sentence explanation."
+            }
+          ]
+        }
+        """
+
+        candidate_text = "\n\n".join(
+            [
+                (
+                    f"Candidate note: {note['note_title']}\n"
+                    f"Candidate tags: {', '.join(note['tags'])}\n"
+                    f"Candidate summary: {note['summary']}"
+                )
+                for note in candidate_notes
+            ]
+        )
+
+        user_prompt = f"""
+            Raw input note:
+            {raw_input_note}
+        
+            Candidate related notes:
+            {candidate_text}
+            """
+        response = self.model_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+        raw_output = response["message"]["content"]
+        return safe_json_loads(raw_output)
+
+
+    def run_multi_agent(self, raw_input_note, candidate_notes):
+        """
+        Multi-agent pipeline where tags and summary are regenerated.
+        """
+        tags = self.tagger_agent(raw_input_note)
+        summary = self.summarizer_agent(raw_input_note, tags)
+        links = self.run_linker_agents(tags, summary, raw_input_note, candidate_notes)
+        result = {
+            "tags": tags,
+            "summary": summary,
+            "links": links
+        }
+        return result
+
+def safe_json_loads(raw_output):
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        start = raw_output.find("{")
+        end = raw_output.rfind("}") + 1
+
+        if start != -1 and end != -1:
+            return json.loads(raw_output[start:end])
+
+        raise

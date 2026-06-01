@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from Vault import Vault
 
-def run_evaluation(agent, model_client, vault: Vault, output_csv, run_agent_system):
+def run_evaluation(vault: Vault, output_csv, run_agent_system):
     # model_client = ollama.Client(host="http://localhost:11434")
     #
     # # Shared setup:
@@ -39,7 +39,6 @@ def run_evaluation(agent, model_client, vault: Vault, output_csv, run_agent_syst
             start_agent = time.time()
 
             result = run_agent_system(
-                model_client=model_client,
                 raw_input_note=raw_input_note,
                 candidate_notes=candidate_notes
             )
