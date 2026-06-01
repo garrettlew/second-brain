@@ -57,6 +57,7 @@ def run_evaluation(vault: Vault, output_csv, run_agent_system):
             agent_latency = time.time() - start_agent
             peak_rss_client = round(peak_rss_mb() - rss_before, 2)
             peak_rss_ollama = round(ollama_result[0], 2) if ollama_result[0] is not None else None
+            print(f"ollama mem: {peak_rss_ollama}")
             error = ""
 
         except Exception as e:

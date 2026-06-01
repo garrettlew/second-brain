@@ -158,7 +158,7 @@ class Agent:
         for future in concurrent.futures.as_completed(futures):
             candidate_id = futures[future]
             judgement = future.result()
-            print(f"Future {candidate_id} returned. Judgement: {judgement.relevant} Reason: {judgement.reason}.")
+            print(f"Future {candidate_id} returned.")
             if judgement.relevant:
                 links.append({"id": candidate_id, "reason": judgement.reason})
 
@@ -257,10 +257,8 @@ class Agent:
 
 
 def try_to_fix_json(content):
-    # if not content:
-    #     raise ValueError("linker_agent received empty response from model")
     if not content.endswith("}"):
-        print("Adding } to {}".format(content))
+        print("Adding closing bracket".format(content))
         if not content.endswith('"'):
             content += '"'
         content += "}"

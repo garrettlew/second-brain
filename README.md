@@ -18,6 +18,7 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 launchctl setenv OLLAMA_KV_CACHE_TYPE q8_0
 launchctl setenv OLLAMA_NUM_PARALLEL <MAX Parallel Requests>
 ```
+Recommendation: OLLAMA_NUM_PARALLEL can be 1 if no parallel requests or 3 if there will be (top k candidates is 3 by default).
 
 3. (Optional) If you have another machine (Mac M1) to run inference:
 - On the inference machine, General > Sharing > Turn Remote login. Click the i icon and add the user to the Allow access for.
