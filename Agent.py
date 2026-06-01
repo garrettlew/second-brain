@@ -117,7 +117,7 @@ class Agent:
             ],
             output_format=Judgement.model_json_schema()
         )
-        print(repr(response.message.content))
+        # print(repr(response.message.content))
         # print(response.prompt_eval_count)
         # print(response.eval_count)
 
@@ -158,7 +158,7 @@ class Agent:
         for future in concurrent.futures.as_completed(futures):
             candidate_id = futures[future]
             judgement = future.result()
-            print(f"Future {candidate_id} returned.")
+            # print(f"Future {candidate_id} returned.")
             if judgement.relevant:
                 links.append({"id": candidate_id, "reason": judgement.reason})
 
@@ -237,7 +237,7 @@ class Agent:
             ]
         )
         raw_output = response["message"]["content"]
-        return safe_json_loads(raw_output)
+        return safe_json_loads(try_to_fix_json(raw_output))
 
 
     def run_multi_agent(self, raw_input_note, candidate_notes):
@@ -258,7 +258,7 @@ class Agent:
 
 def try_to_fix_json(content):
     if not content.endswith("}"):
-        print("Adding closing bracket".format(content))
+        print("Adding closing bracket")
         if not content.endswith('"'):
             content += '"'
         content += "}"
