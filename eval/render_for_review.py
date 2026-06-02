@@ -38,8 +38,9 @@ RUBRIC = """\
   - 1 = partially relevant or too broad/generic
   - 2 = highly relevant and specific to this note
 
-**Summary Faithfulness** (`summary_faithfulness_score`): 1–3
-  - 1 = misses the key point, hallucinates facts, or is incoherent
+**Summary Faithfulness** (`summary_faithfulness_score`): 0–3
+  - 0 = completely wrong, incoherent, or entirely hallucinated
+  - 1 = misses the key point, hallucinates facts, or is largely incoherent
   - 2 = adequate — captures basic premise but misses nuance or has minor inaccuracies
   - 3 = highly faithful — captures core concepts accurately without introducing external facts
 
@@ -129,8 +130,8 @@ def render_row_md(row: dict, vault_path: Path | None, idx: int) -> str:
     lines.append("### Proposed links")
     if links:
         for link in links:
-            title = link.get("note_title", "?")
-            justification = link.get("justification", "")
+            title = link.get("note_title") or link.get("id", "?")
+            justification = link.get("justification") or link.get("reason", "")
             lines.append(f"- **{title}** — {justification}")
     else:
         lines.append("*(none proposed)*")
@@ -156,7 +157,7 @@ def render_row_md(row: dict, vault_path: Path | None, idx: int) -> str:
 
     lines.append("### Scores (fill in)")
     lines.append(f"- `tag_relevance_score` (0–2): {existing_tag_score or '___'}")
-    lines.append(f"- `summary_faithfulness_score` (1–3): {existing_sum_score or '___'}")
+    lines.append(f"- `summary_faithfulness_score` (0–3): {existing_sum_score or '___'}")
     lines.append(f"- `link_quality_score` (0–2): {existing_link_score or '___'}")
     lines.append(f"- `comments`: {existing_comments or '___'}")
     lines.append("")
