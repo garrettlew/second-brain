@@ -68,14 +68,23 @@ def parse_json_cell(value: str, fallback):
         return fallback
 
 
+def first_present(row: dict, *keys, default=""):
+    """Return the first column value that is present and non-empty."""
+    for k in keys:
+        v = row.get(k)
+        if v not in (None, ""):
+            return v
+    return default
+
+
 def render_row_md(row: dict, vault_path: Path | None, idx: int) -> str:
     note_id = row.get("note_id", "unknown")
     condition = row.get("condition", "")
-    tags = parse_json_cell(row.get("tags", ""), [])
-    summary = row.get("summary", "").strip()
-    links = parse_json_cell(row.get("links", ""), [])
+    tags = parse_json_cell(first_present(row, "generated_tags", "tags"), [])
+    summary = first_present(row, "generated_summary", "summary").strip()
+    links = parse_json_cell(first_present(row, "generated_links", "links"), [])
     candidates = parse_json_cell(row.get("candidate_notes", ""), [])
-    latency = row.get("latency_seconds", "")
+    latency = first_present(row, "total_latency_seconds", "agent_latency_seconds", "latency_seconds")
     error = row.get("error", "").strip()
 
     existing_tag_score = row.get("tag_relevance_score", "").strip()
@@ -107,7 +116,7 @@ def render_row_md(row: dict, vault_path: Path | None, idx: int) -> str:
     if tags:
         lines.append(", ".join(f"`{t}`" for t in tags))
     else:
-        lines.append("*(none — see error above)*")
+        lines.append("*(none — see error above)*" if error else "*(none)*")
     lines.append("")
 
     lines.append("### Summary")
@@ -131,7 +140,7 @@ def render_row_md(row: dict, vault_path: Path | None, idx: int) -> str:
     if candidates:
         for c in candidates:
             title = c.get("note_title", "?")
-            preview = c.get("content_preview", "").replace("\\n", "\n").strip()
+            preview = (c.get("content_preview") or c.get("summary") or "").replace("\\n", "\n").strip()
             distance = c.get("distance")
             dist_str = f" (distance {distance:.3f})" if isinstance(distance, float) else ""
             lines.append(f"**{title}**{dist_str}")
